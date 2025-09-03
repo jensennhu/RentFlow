@@ -8,6 +8,7 @@ import { PaymentPortal } from './components/PaymentPortal';
 import { RepairManagement } from './components/RepairManagement';
 import { GoogleSheetsSetup } from './components/GoogleSheetsSetup';
 import { googleSheetsService } from './services/googleSheets';
+import { googleAuthService } from './services/googleAuth';
 import { properties, tenants, payments } from './data/mockData';
 import type { GoogleSheetsConfig, SyncStatus } from './types';
 
@@ -15,7 +16,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showGoogleSheetsSetup, setShowGoogleSheetsSetup] = useState(false);
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState<GoogleSheetsConfig | null>(
-    googleSheetsService.getConfig()
+    googleAuthService.getConfig()
   );
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -25,10 +26,13 @@ function App() {
   };
 
   const handleSync = async () => {
-    if (!googleSheetsConfig?.connected) return;
+    if (!googleSheetsConfig?.connected || !googleSheetsConfig?.spreadsheetId) return;
     
     setIsSyncing(true);
     try {
+      // Ensure required sheets exist
+      await googleSheetsService.createSheetsIfNeeded(googleSheetsConfig.spreadsheetId);
+      
       await googleSheetsService.syncProperties(properties);
       await googleSheetsService.syncTenants(tenants);
       await googleSheetsService.syncPayments(payments);

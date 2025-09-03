@@ -1,7 +1,7 @@
 import React from 'react';
 import { Home, Users, DollarSign, Wrench, AlertTriangle, Database, RefreshCw } from 'lucide-react';
 import { properties, tenants, payments, repairRequests } from '../data/mockData';
-import { googleSheetsService } from '../services/googleSheets';
+import { googleAuthService } from '../services/googleAuth';
 
 interface DashboardProps {
   onSync: () => void;
@@ -14,7 +14,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing }) => {
   const totalRevenue = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
   const pendingRepairs = repairRequests.filter(r => r.status !== 'completed').length;
   const urgentRepairs = repairRequests.filter(r => r.priority === 'urgent' && r.status !== 'completed').length;
-  const isConnected = googleSheetsService.isConnected();
+  const isConnected = googleAuthService.isConnected();
 
   const stats = [
     { label: 'Total Properties', value: totalProperties, icon: Home, color: 'blue' },

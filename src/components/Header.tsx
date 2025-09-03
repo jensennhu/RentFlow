@@ -1,13 +1,14 @@
 import React from 'react';
 import { Building2, User, Bell, Database, Wifi, WifiOff } from 'lucide-react';
-import { googleSheetsService } from '../services/googleSheets';
+import { googleAuthService } from '../services/googleAuth';
 
 interface HeaderProps {
   onOpenGoogleSheets: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenGoogleSheets }) => {
-  const isConnected = googleSheetsService.isConnected();
+  const isConnected = googleAuthService.isConnected();
+  const config = googleAuthService.getConfig();
 
   return (
     <header className="bg-white shadow-lg border-b border-gray-200">
@@ -33,7 +34,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGoogleSheets }) => {
               {isConnected ? (
                 <>
                   <Wifi className="h-4 w-4" />
-                  <span>Sheets Connected</span>
+                  <span>Google Sheets</span>
                 </>
               ) : (
                 <>
@@ -42,6 +43,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGoogleSheets }) => {
                 </>
               )}
             </button>
+            
+            {isConnected && config?.userEmail && (
+              <div className="text-xs text-gray-500">
+                {config.userEmail}
+              </div>
+            )}
             
             <button className="p-2 text-gray-400 hover:text-gray-600 relative">
               <Bell className="h-5 w-5" />

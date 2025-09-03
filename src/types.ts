@@ -43,13 +43,22 @@ export interface RepairRequest {
 }
 
 export interface GoogleSheetsConfig {
-  spreadsheetId: string;
-  apiKey: string;
+  spreadsheetId?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiryDate?: number;
   connected: boolean;
+  userEmail?: string;
 }
 
 export interface SyncStatus {
   lastSync: string;
   status: 'success' | 'error' | 'syncing';
   message?: string;
+}
+
+export interface GoogleSheet {
+  id: string;
+  name: string;
+  url: string;
 }

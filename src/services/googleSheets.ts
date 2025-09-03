@@ -1,34 +1,25 @@
-import { GoogleSheetsConfig, Property, Tenant, Payment, RepairRequest } from '../types';
+import { GoogleSheetsConfig, Property, Tenant, Payment } from '../types';
+import { googleAuthService } from './googleAuth';
 
 class GoogleSheetsService {
-  private config: GoogleSheetsConfig | null = null;
-
-  setConfig(config: GoogleSheetsConfig) {
-    this.config = config;
-    localStorage.setItem('googleSheetsConfig', JSON.stringify(config));
-  }
-
   getConfig(): GoogleSheetsConfig | null {
-    if (this.config) return this.config;
-    
-    const stored = localStorage.getItem('googleSheetsConfig');
-    if (stored) {
-      this.config = JSON.parse(stored);
-      return this.config;
-    }
-    
-    return null;
+    return googleAuthService.getConfig();
   }
 
   isConnected(): boolean {
-    const config = this.getConfig();
-    return config?.connected || false;
+    return googleAuthService.isConnected();
   }
 
-  async testConnection(apiKey: string, spreadsheetId: string): Promise<boolean> {
+  async testConnection(spreadsheetId: string): Promise<boolean> {
     try {
+      const accessToken = await googleAuthService.getValidAccessToken();
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?key=${apiKey}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
       );
       return response.ok;
     } catch (error) {
@@ -37,10 +28,62 @@ class GoogleSheetsService {
     }
   }
 
+  async createSheetsIfNeeded(spreadsheetId: string): Promise<void> {
+    try {
+      const accessToken = await googleAuthService.getValidAccessToken();
+      
+      // Get existing sheets
+      const response = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to access spreadsheet');
+      }
+
+      const spreadsheet = await response.json();
+      const existingSheets = spreadsheet.sheets.map((sheet: any) => sheet.properties.title);
+      
+      const requiredSheets = ['Properties', 'Tenants', 'Payments'];
+      const sheetsToCreate = requiredSheets.filter(sheet => !existingSheets.includes(sheet));
+
+      if (sheetsToCreate.length > 0) {
+        const requests = sheetsToCreate.map(title => ({
+          addSheet: {
+            properties: { title }
+          }
+        }));
+
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ requests }),
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error creating sheets:', error);
+      throw error;
+    }
+  }
+
   async syncProperties(properties: Property[]): Promise<void> {
     if (!this.isConnected()) throw new Error('Google Sheets not connected');
     
     const config = this.getConfig()!;
+    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
+    
+    const accessToken = await googleAuthService.getValidAccessToken();
     
     // Convert properties to 2D array for Google Sheets
     const headers = ['ID', 'Address', 'Type', 'Rent', 'Status'];
@@ -50,10 +93,11 @@ class GoogleSheetsService {
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A1:E${values.length}?valueInputOption=RAW&key=${config.apiKey}`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A1:E${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ values }),
@@ -73,6 +117,9 @@ class GoogleSheetsService {
     if (!this.isConnected()) throw new Error('Google Sheets not connected');
     
     const config = this.getConfig()!;
+    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
+    
+    const accessToken = await googleAuthService.getValidAccessToken();
     
     const headers = ['ID', 'Name', 'Email', 'Phone', 'Property ID', 'Lease Start', 'Lease End', 'Rent Amount'];
     const rows = tenants.map(t => [
@@ -84,10 +131,11 @@ class GoogleSheetsService {
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A1:H${values.length}?valueInputOption=RAW&key=${config.apiKey}`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A1:H${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ values }),
@@ -107,6 +155,9 @@ class GoogleSheetsService {
     if (!this.isConnected()) throw new Error('Google Sheets not connected');
     
     const config = this.getConfig()!;
+    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
+    
+    const accessToken = await googleAuthService.getValidAccessToken();
     
     const headers = ['ID', 'Tenant ID', 'Amount', 'Date', 'Status', 'Method', 'Description'];
     const rows = payments.map(p => [
@@ -117,10 +168,11 @@ class GoogleSheetsService {
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A1:G${values.length}?valueInputOption=RAW&key=${config.apiKey}`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A1:G${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ values }),
@@ -144,23 +196,41 @@ class GoogleSheetsService {
     if (!this.isConnected()) throw new Error('Google Sheets not connected');
     
     const config = this.getConfig()!;
+    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
+    
+    const accessToken = await googleAuthService.getValidAccessToken();
     
     try {
       // Pull properties
       const propertiesResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A2:E1000?key=${config.apiKey}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A2:E1000`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
       );
       const propertiesData = await propertiesResponse.json();
       
       // Pull tenants
       const tenantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A2:H1000?key=${config.apiKey}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A2:H1000`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
       );
       const tenantsData = await tenantsResponse.json();
       
       // Pull payments
       const paymentsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A2:G1000?key=${config.apiKey}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A2:G1000`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
       );
       const paymentsData = await paymentsResponse.json();
       
