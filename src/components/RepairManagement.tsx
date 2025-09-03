@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Camera, Calendar, AlertTriangle, CheckCircle, Clock, User, Home } from 'lucide-react';
+import { Plus, Camera, Calendar, AlertTriangle, CheckCircle, Clock, User, Home, Grid3X3, List } from 'lucide-react';
 import { repairRequests, tenants, properties } from '../data/mockData';
 import type { RepairRequest } from '../types';
 
 export const RepairManagement: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('all');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
 
   const filteredRequests = repairRequests;
 
@@ -46,6 +47,24 @@ export const RepairManagement: React.FC = () => {
             Manage and track repair requests from tenants
           </p>
         </div>
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('card')}
+            className={`p-2 rounded-md transition-colors ${
+              viewMode === 'card' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Grid3X3 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            className={`p-2 rounded-md transition-colors ${
+              viewMode === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <List className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -71,72 +90,160 @@ export const RepairManagement: React.FC = () => {
       </div>
 
       {/* Repair Requests Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {displayRequests.map((request) => {
-          const StatusIcon = getStatusIcon(request.status);
-          const tenant = tenants.find(t => t.id === request.tenantId);
-          const property = properties.find(p => p.id === request.propertyId);
-          
-          return (
-            <div key={request.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-2">
-                  <StatusIcon className="h-5 w-5 text-gray-600" />
-                  <h3 className="font-semibold text-gray-900 truncate">{request.title}</h3>
+      {viewMode === 'card' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {displayRequests.map((request) => {
+            const StatusIcon = getStatusIcon(request.status);
+            const tenant = tenants.find(t => t.id === request.tenantId);
+            const property = properties.find(p => p.id === request.propertyId);
+            
+            return (
+              <div key={request.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <StatusIcon className="h-5 w-5 text-gray-600" />
+                    <h3 className="font-semibold text-gray-900 truncate">{request.title}</h3>
+                  </div>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(request.priority)}`}>
+                    {request.priority}
+                  </span>
                 </div>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(request.priority)}`}>
-                  {request.priority}
-                </span>
-              </div>
 
-              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{request.description}</p>
+                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{request.description}</p>
 
-              <div className="space-y-2 text-sm text-gray-600 mb-4">
-                <div className="flex items-center">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Submitted: {new Date(request.dateSubmitted).toLocaleDateString()}
-                </div>
-                {tenant && (
+                <div className="space-y-2 text-sm text-gray-600 mb-4">
                   <div className="flex items-center">
-                    <User className="h-4 w-4 mr-2" />
-                    {tenant.name}
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Submitted: {new Date(request.dateSubmitted).toLocaleDateString()}
+                  </div>
+                  {tenant && (
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 mr-2" />
+                      {tenant.name}
+                    </div>
+                  )}
+                  <div className="flex items-center">
+                    <Home className="h-4 w-4 mr-2" />
+                    {property?.address}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    {request.category}
+                  </span>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(request.status)}`}>
+                    {request.status}
+                  </span>
+                </div>
+
+                {request.dateCompleted && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs text-green-600">
+                      Completed: {new Date(request.dateCompleted).toLocaleDateString()}
+                    </p>
                   </div>
                 )}
-                <div className="flex items-center">
-                  <Home className="h-4 w-4 mr-2" />
-                  {property?.address}
+
+                <div className="mt-4 flex space-x-2">
+                  <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
+                    Update Status
+                  </button>
+                  <button className="flex-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">
+                    Contact Tenant
+                  </button>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                  {request.category}
-                </span>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(request.status)}`}>
-                  {request.status}
-                </span>
-              </div>
-
-              {request.dateCompleted && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <p className="text-xs text-green-600">
-                    Completed: {new Date(request.dateCompleted).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-4 flex space-x-2">
-                <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
-                  Update Status
-                </button>
-                <button className="flex-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">
-                  Contact Tenant
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Request
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Property
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tenant
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Priority
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {displayRequests.map((request) => {
+                  const StatusIcon = getStatusIcon(request.status);
+                  const tenant = tenants.find(t => t.id === request.tenantId);
+                  const property = properties.find(p => p.id === request.propertyId);
+                  
+                  return (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <StatusIcon className="h-4 w-4 text-gray-600 mr-3" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{request.title}</div>
+                            <div className="text-sm text-gray-500 truncate max-w-xs">{request.description}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {property?.address}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {tenant?.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          {request.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(request.priority)}`}>
+                          {request.priority}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(request.status)}`}>
+                          {request.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(request.dateSubmitted).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <button className="text-blue-600 hover:text-blue-900">Update</button>
+                          <button className="text-gray-600 hover:text-gray-900">Contact</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {displayRequests.length === 0 && (
         <div className="text-center py-12">
