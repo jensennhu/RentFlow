@@ -1,8 +1,9 @@
 import { GoogleSheetsConfig, GoogleSheet } from '../types';
 
 class GoogleAuthService {
-  private readonly CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  private readonly REDIRECT_URI = `${window.location.origin}/auth/callback`;
+  private readonly CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '891997462793-hsete63gelvlbjmh4bimq1c8fl57ukhd.apps.googleusercontent.com';
+  private readonly CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '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';
+  private readonly REDIRECT_URI = import.meta.env.VITE_GOOGLE_REDIRECT_URI || 'http://localhost:5173/api/auth/callback';
   private readonly SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive.readonly',
@@ -70,7 +71,7 @@ class GoogleAuthService {
         },
         body: new URLSearchParams({
           client_id: this.CLIENT_ID,
-          client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '',
+          client_secret: this.CLIENT_SECRET,
           code,
           grant_type: 'authorization_code',
           redirect_uri: this.REDIRECT_URI,
@@ -121,7 +122,7 @@ class GoogleAuthService {
         },
         body: new URLSearchParams({
           client_id: this.CLIENT_ID,
-          client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '',
+          client_secret: this.CLIENT_SECRET,
           refresh_token: this.config.refreshToken,
           grant_type: 'refresh_token',
         }),
