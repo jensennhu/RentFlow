@@ -1,7 +1,7 @@
 import { GoogleSheetsConfig, GoogleSheet } from '../types';
 
 class GoogleAuthService {
-  private readonly API_BASE = 'http://localhost:3001';
+  private readonly API_BASE = 'http://localhost:5173';
   private config: GoogleSheetsConfig | null = null;
 
   constructor() {
