@@ -2,7 +2,7 @@ import { GoogleSheetsConfig, Property, Tenant, Payment } from '../types';
 import { googleAuthService } from './googleAuth';
 
 class GoogleSheetsService {
-  private readonly API_BASE = 'http://localhost:3001';
+  private readonly API_BASE = 'http://localhost:5173';
 
   getConfig(): GoogleSheetsConfig | null {
     return googleAuthService.getConfig();
