@@ -46,37 +46,16 @@ A comprehensive rental property management system with Google Sheets integration
    # Edit .env with your Google OAuth credentials
    ```
 
-3. Start both backend and frontend servers:
+3. Start the development server:
    ```bash
-   # Terminal 1: Start the backend server
-   npm run server
-   
-   # Terminal 2: Start the frontend development server
    npm run dev
-   
-   # Or run both together:
-   npm run dev:full
    ```
 
-4. Open your browser and navigate to http://localhost:5173
-
-5. Connect to Google Sheets:
+4. Connect to Google Sheets:
    - Click "Connect Sheets" in the header
    - Authenticate with your Google account
    - Select or enter your spreadsheet ID
    - Start syncing your rental data
-
-## API Endpoints
-
-The backend server provides these OAuth and Google Sheets endpoints:
-
-- `GET /auth/google` - Initiate Google OAuth flow
-- `GET /api/auth/callback` - Handle OAuth callback and token exchange
-- `GET /api/user` - Get current authenticated user info
-- `GET /api/sheets/list` - List user's Google Sheets
-- `GET /api/sheets/:id` - Fetch data from a specific spreadsheet
-- `POST /api/sheets/:id/sync` - Sync rental data to Google Sheets
-- `POST /api/auth/logout` - Logout and clear session
 
 ## Security
 

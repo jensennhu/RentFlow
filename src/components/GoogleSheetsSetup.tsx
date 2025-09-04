@@ -20,9 +20,6 @@ export const GoogleSheetsSetup: React.FC<GoogleSheetsSetupProps> = ({ isOpen, on
 
   useEffect(() => {
     if (isOpen) {
-      // Check authentication status first
-      checkAuthStatus();
-      
       const currentConfig = googleAuthService.getConfig();
       setConfig(currentConfig);
       
@@ -37,26 +34,29 @@ export const GoogleSheetsSetup: React.FC<GoogleSheetsSetupProps> = ({ isOpen, on
       } else {
         setStep('auth');
       }
+
+      // Handle OAuth callback
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      if (code) {
+        handleOAuthCallback(code);
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
   }, [isOpen]);
 
-  const checkAuthStatus = async () => {
+  const handleOAuthCallback = async (code: string) => {
     setIsLoading(true);
+    setError('');
+    
     try {
-      const isAuthenticated = await googleAuthService.checkAuthStatus();
-      if (isAuthenticated) {
-        const currentConfig = googleAuthService.getConfig();
-        setConfig(currentConfig);
-        if (currentConfig?.spreadsheetId) {
-          setStep('connected');
-          setSpreadsheetId(currentConfig.spreadsheetId);
-        } else {
-          setStep('spreadsheet');
-          await loadUserSheets();
-        }
-      }
-    } catch (error) {
-      console.error('Error checking auth status:', error);
+      const newConfig = await googleAuthService.handleAuthCallback(code);
+      setConfig(newConfig);
+      setStep('spreadsheet');
+      await loadUserSheets();
+    } catch (err) {
+      setError('Failed to authenticate with Google. Please try again.');
     } finally {
       setIsLoading(false);
     }
