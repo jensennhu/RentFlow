@@ -26,7 +26,7 @@ app.use(cookieParser());
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/api/auth/callback'
+  'http://localhost:3001/api/auth/callback'
 );
 
 // In-memory token storage (replace with database in production)
@@ -65,11 +65,11 @@ app.get('/api/auth/callback', async (req, res) => {
 
   if (error) {
     console.error('OAuth error:', error);
-    return res.status(400).json({ error: 'OAuth authentication failed' });
+    return res.redirect(`http://localhost:5173?error=${encodeURIComponent(error)}`);
   }
 
   if (!code) {
-    return res.status(400).json({ error: 'Authorization code not provided' });
+    return res.redirect('http://localhost:5173?error=no_code');
   }
 
   try {
@@ -114,27 +114,12 @@ app.get('/api/auth/callback', async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
-    // Return token response
-    res.json({
-      success: true,
-      user: {
-        id: userId,
-        email: userEmail
-      },
-      tokens: {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        id_token: tokens.id_token,
-        expiry_date: tokens.expiry_date
-      }
-    });
+    // Redirect back to frontend with success
+    res.redirect(`http://localhost:5173?auth=success&email=${encodeURIComponent(userEmail)}`);
 
   } catch (error) {
     console.error('Error exchanging code for tokens:', error);
-    res.status(500).json({ 
-      error: 'Failed to exchange authorization code for tokens',
-      details: error.message 
-    });
+    res.redirect(`http://localhost:5173?error=${encodeURIComponent('auth_failed')}`);
   }
 });
 

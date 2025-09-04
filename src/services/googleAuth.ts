@@ -1,11 +1,12 @@
 import { GoogleSheetsConfig, GoogleSheet } from '../types';
 
 class GoogleAuthService {
-  private readonly API_BASE = 'http://localhost:5173';
+  private readonly API_BASE = 'http://localhost:3001';
   private config: GoogleSheetsConfig | null = null;
 
   constructor() {
     this.loadConfig();
+    this.handleAuthCallback();
   }
 
   private loadConfig() {
@@ -20,17 +21,34 @@ class GoogleAuthService {
     localStorage.setItem('googleSheetsConfig', JSON.stringify(config));
   }
 
+  private handleAuthCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authSuccess = urlParams.get('auth');
+    const email = urlParams.get('email');
+    const error = urlParams.get('error');
+
+    if (authSuccess === 'success' && email) {
+      const config: GoogleSheetsConfig = {
+        connected: true,
+        userEmail: decodeURIComponent(email),
+      };
+      this.saveConfig(config);
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (error) {
+      console.error('OAuth error:', error);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }
+
   getConfig(): GoogleSheetsConfig | null {
     return this.config;
   }
 
   isConnected(): boolean {
-    return this.config?.connected && this.isTokenValid() || false;
-  }
-
-  private isTokenValid(): boolean {
-    if (!this.config?.expiryDate) return false;
-    return Date.now() < this.config.expiryDate;
+    return this.config?.connected || false;
   }
 
   // Initiate OAuth flow by redirecting to backend
@@ -38,79 +56,28 @@ class GoogleAuthService {
     window.location.href = `${this.API_BASE}/auth/google`;
   }
 
-  // Handle OAuth callback from URL parameters
-  async handleAuthCallback(): Promise<GoogleSheetsConfig> {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
-
-    if (error) {
-      throw new Error(`OAuth error: ${error}`);
-    }
-
-    if (!code) {
-      throw new Error('No authorization code received');
-    }
-
+  async checkAuthStatus(): Promise<boolean> {
     try {
-      // The callback route will handle the token exchange
-      const response = await fetch(`${this.API_BASE}/api/auth/callback?code=${code}`, {
+      const response = await fetch(`${this.API_BASE}/api/user`, {
         credentials: 'include'
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to authenticate');
+      
+      if (response.ok) {
+        const userData = await response.json();
+        if (userData.authenticated) {
+          const config: GoogleSheetsConfig = {
+            connected: true,
+            userEmail: userData.email,
+          };
+          this.saveConfig(config);
+          return true;
+        }
       }
-
-      const data = await response.json();
-
-      const config: GoogleSheetsConfig = {
-        accessToken: data.tokens.access_token,
-        refreshToken: data.tokens.refresh_token,
-        expiryDate: data.tokens.expiry_date,
-        connected: true,
-        userEmail: data.user.email,
-      };
-
-      this.saveConfig(config);
-      
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      return config;
+      return false;
     } catch (error) {
-      console.error('OAuth callback error:', error);
-      throw new Error('Failed to complete Google authentication');
+      console.error('Error checking auth status:', error);
+      return false;
     }
-  }
-
-  async refreshAccessToken(): Promise<void> {
-    if (!this.config?.refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    try {
-      // In a real implementation, you'd call your backend to refresh the token
-      // For now, we'll simulate the refresh
-      console.log('Token refresh would be handled by backend');
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      this.disconnect();
-      throw error;
-    }
-  }
-
-  async getValidAccessToken(): Promise<string> {
-    if (!this.config?.accessToken) {
-      throw new Error('No access token available');
-    }
-
-    if (!this.isTokenValid()) {
-      await this.refreshAccessToken();
-    }
-
-    return this.config.accessToken!;
   }
 
   async listUserSheets(): Promise<GoogleSheet[]> {
