@@ -51,7 +51,7 @@ export const GoogleSheetsSetup: React.FC<GoogleSheetsSetupProps> = ({ isOpen, on
     setError('');
     
     try {
-      const newConfig = await googleAuthService.handleAuthCallback(code);
+      const newConfig = await googleAuthService.handleAuthCallback();
       setConfig(newConfig);
       setStep('spreadsheet');
       await loadUserSheets();

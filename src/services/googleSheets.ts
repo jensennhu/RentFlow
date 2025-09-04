@@ -2,6 +2,8 @@ import { GoogleSheetsConfig, Property, Tenant, Payment } from '../types';
 import { googleAuthService } from './googleAuth';
 
 class GoogleSheetsService {
+  private readonly API_BASE = 'http://localhost:3001';
+
   getConfig(): GoogleSheetsConfig | null {
     return googleAuthService.getConfig();
   }
@@ -11,179 +13,73 @@ class GoogleSheetsService {
   }
 
   async testConnection(spreadsheetId: string): Promise<boolean> {
-    try {
-      const accessToken = await googleAuthService.getValidAccessToken();
-      const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
-      return response.ok;
-    } catch (error) {
-      console.error('Google Sheets connection test failed:', error);
-      return false;
-    }
+    return googleAuthService.testConnection(spreadsheetId);
   }
 
   async createSheetsIfNeeded(spreadsheetId: string): Promise<void> {
+    // This is now handled by the backend sync endpoint
+    console.log('Sheet creation handled by backend during sync');
+  }
+
+  async syncAllData(properties: Property[], tenants: Tenant[], payments: Payment[]): Promise<void> {
+    const config = this.getConfig();
+    if (!config?.spreadsheetId) {
+      throw new Error('No spreadsheet configured');
+    }
+
     try {
-      const accessToken = await googleAuthService.getValidAccessToken();
-      
-      // Get existing sheets
-      const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const response = await fetch(`${this.API_BASE}/api/sheets/${config.spreadsheetId}/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          properties,
+          tenants,
+          payments
+        })
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to access spreadsheet');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sync data');
       }
 
-      const spreadsheet = await response.json();
-      const existingSheets = spreadsheet.sheets.map((sheet: any) => sheet.properties.title);
-      
-      const requiredSheets = ['Properties', 'Tenants', 'Payments'];
-      const sheetsToCreate = requiredSheets.filter(sheet => !existingSheets.includes(sheet));
-
-      if (sheetsToCreate.length > 0) {
-        const requests = sheetsToCreate.map(title => ({
-          addSheet: {
-            properties: { title }
-          }
-        }));
-
-        await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ requests }),
-          }
-        );
-      }
+      const result = await response.json();
+      console.log('Sync successful:', result.message);
     } catch (error) {
-      console.error('Error creating sheets:', error);
+      console.error('Error syncing data:', error);
       throw error;
     }
   }
 
   async syncProperties(properties: Property[]): Promise<void> {
-    if (!this.isConnected()) throw new Error('Google Sheets not connected');
-    
-    const config = this.getConfig()!;
-    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
-    
-    const accessToken = await googleAuthService.getValidAccessToken();
-    
-    // Convert properties to 2D array for Google Sheets
-    const headers = ['ID', 'Address', 'Type', 'Rent', 'Status'];
-    const rows = properties.map(p => [p.id, p.address, p.type, p.rent.toString(), p.status]);
-    
-    const values = [headers, ...rows];
-    
-    try {
-      const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A1:E${values.length}?valueInputOption=RAW`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ values }),
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to sync properties to Google Sheets');
-      }
-    } catch (error) {
-      console.error('Error syncing properties:', error);
-      throw error;
-    }
+    await this.syncAllData(properties, [], []);
   }
 
   async syncTenants(tenants: Tenant[]): Promise<void> {
-    if (!this.isConnected()) throw new Error('Google Sheets not connected');
-    
-    const config = this.getConfig()!;
-    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
-    
-    const accessToken = await googleAuthService.getValidAccessToken();
-    
-    const headers = ['ID', 'Name', 'Email', 'Phone', 'Property ID', 'Lease Start', 'Lease End', 'Rent Amount'];
-    const rows = tenants.map(t => [
-      t.id, t.name, t.email, t.phone, t.propertyId, 
-      t.leaseStart, t.leaseEnd, t.rentAmount.toString()
-    ]);
-    
-    const values = [headers, ...rows];
-    
-    try {
-      const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A1:H${values.length}?valueInputOption=RAW`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ values }),
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to sync tenants to Google Sheets');
-      }
-    } catch (error) {
-      console.error('Error syncing tenants:', error);
-      throw error;
-    }
+    await this.syncAllData([], tenants, []);
   }
 
   async syncPayments(payments: Payment[]): Promise<void> {
-    if (!this.isConnected()) throw new Error('Google Sheets not connected');
-    
-    const config = this.getConfig()!;
-    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
-    
-    const accessToken = await googleAuthService.getValidAccessToken();
-    
-    const headers = ['ID', 'Tenant ID', 'Amount', 'Date', 'Status', 'Method', 'Description'];
-    const rows = payments.map(p => [
-      p.id, p.tenantId, p.amount.toString(), p.date, p.status, p.method, p.description
-    ]);
-    
-    const values = [headers, ...rows];
-    
+    await this.syncAllData([], [], payments);
+  }
+
+  async getSheetData(spreadsheetId: string, range: string = 'Sheet1!A1:Z1000'): Promise<any> {
     try {
-      const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A1:G${values.length}?valueInputOption=RAW`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ values }),
-        }
-      );
-      
+      const response = await fetch(`${this.API_BASE}/api/sheets/${spreadsheetId}?range=${encodeURIComponent(range)}`, {
+        credentials: 'include'
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to sync payments to Google Sheets');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch sheet data');
       }
+
+      return await response.json();
     } catch (error) {
-      console.error('Error syncing payments:', error);
+      console.error('Error fetching sheet data:', error);
       throw error;
     }
   }
@@ -193,57 +89,25 @@ class GoogleSheetsService {
     tenants: Tenant[];
     payments: Payment[];
   }> {
-    if (!this.isConnected()) throw new Error('Google Sheets not connected');
-    
-    const config = this.getConfig()!;
-    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
-    
-    const accessToken = await googleAuthService.getValidAccessToken();
-    
+    const config = this.getConfig();
+    if (!config?.spreadsheetId) {
+      throw new Error('No spreadsheet configured');
+    }
+
     try {
       // Pull properties
-      const propertiesResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A2:E1000`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
-      const propertiesData = await propertiesResponse.json();
-      
-      // Pull tenants
-      const tenantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A2:H1000`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
-      const tenantsData = await tenantsResponse.json();
-      
-      // Pull payments
-      const paymentsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A2:G1000`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
-      const paymentsData = await paymentsResponse.json();
-      
-      // Convert back to objects
-      const properties: Property[] = (propertiesData.values || []).map((row: string[]) => ({
+      const propertiesData = await this.getSheetData(config.spreadsheetId, 'Properties!A2:E1000');
+      const properties: Property[] = (propertiesData.data.values || []).map((row: string[]) => ({
         id: row[0],
         address: row[1],
         type: row[2],
-        rent: parseInt(row[3]),
+        rent: parseInt(row[3]) || 0,
         status: row[4] as Property['status']
       }));
-      
-      const tenants: Tenant[] = (tenantsData.values || []).map((row: string[]) => ({
+
+      // Pull tenants
+      const tenantsData = await this.getSheetData(config.spreadsheetId, 'Tenants!A2:H1000');
+      const tenants: Tenant[] = (tenantsData.data.values || []).map((row: string[]) => ({
         id: row[0],
         name: row[1],
         email: row[2],
@@ -251,19 +115,21 @@ class GoogleSheetsService {
         propertyId: row[4],
         leaseStart: row[5],
         leaseEnd: row[6],
-        rentAmount: parseInt(row[7])
+        rentAmount: parseInt(row[7]) || 0
       }));
-      
-      const payments: Payment[] = (paymentsData.values || []).map((row: string[]) => ({
+
+      // Pull payments
+      const paymentsData = await this.getSheetData(config.spreadsheetId, 'Payments!A2:G1000');
+      const payments: Payment[] = (paymentsData.data.values || []).map((row: string[]) => ({
         id: row[0],
         tenantId: row[1],
-        amount: parseInt(row[2]),
+        amount: parseInt(row[2]) || 0,
         date: row[3],
         status: row[4] as Payment['status'],
         method: row[5],
         description: row[6]
       }));
-      
+
       return { properties, tenants, payments };
     } catch (error) {
       console.error('Error pulling from Google Sheets:', error);
