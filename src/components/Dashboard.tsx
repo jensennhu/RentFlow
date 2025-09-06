@@ -1,14 +1,17 @@
 import React from 'react';
 import { Home, Users, DollarSign, Wrench, AlertTriangle, Database, RefreshCw } from 'lucide-react';
-import { properties, tenants, payments, repairRequests } from '../data/mockData';
 import { googleAuthService } from '../services/googleAuth';
+import type { useData } from '../hooks/useData';
 
 interface DashboardProps {
   onSync: () => void;
   isSyncing: boolean;
+  dataHook: ReturnType<typeof useData>;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
+  const { properties, tenants, payments, repairRequests } = dataHook;
+  
   const totalProperties = properties.length;
   const occupiedProperties = properties.filter(p => p.status === 'occupied').length;
   const totalRevenue = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);

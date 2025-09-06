@@ -1,4 +1,5 @@
 import { GoogleSheetsConfig, Property, Tenant, Payment } from '../types';
+import type { RepairRequest } from '../types';
 import { googleAuthService } from './googleAuth';
 
 class GoogleSheetsService {
@@ -50,6 +51,7 @@ class GoogleSheetsService {
       const existingSheets = spreadsheet.sheets.map((sheet: any) => sheet.properties.title);
       
       const requiredSheets = ['Properties', 'Tenants', 'Payments'];
+      const requiredSheets = ['Properties', 'Tenants', 'Payments', 'Repairs'];
       const sheetsToCreate = requiredSheets.filter(sheet => !existingSheets.includes(sheet));
 
       if (sheetsToCreate.length > 0) {
@@ -188,10 +190,48 @@ class GoogleSheetsService {
     }
   }
 
+  async syncRepairRequests(repairRequests: RepairRequest[]): Promise<void> {
+    if (!this.isConnected()) throw new Error('Google Sheets not connected');
+    
+    const config = this.getConfig()!;
+    if (!config.spreadsheetId) throw new Error('No spreadsheet selected');
+    
+    const accessToken = await googleAuthService.getValidAccessToken();
+    
+    const headers = ['ID', 'Tenant ID', 'Property ID', 'Title', 'Description', 'Priority', 'Status', 'Date Submitted', 'Date Completed', 'Category'];
+    const rows = repairRequests.map(r => [
+      r.id, r.tenantId, r.propertyId, r.title, r.description, r.priority, r.status, r.dateSubmitted, r.dateCompleted || '', r.category
+    ]);
+    
+    const values = [headers, ...rows];
+    
+    try {
+      const response = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Repairs!A1:J${values.length}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ values }),
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to sync repair requests to Google Sheets');
+      }
+    } catch (error) {
+      console.error('Error syncing repair requests:', error);
+      throw error;
+    }
+  }
+
   async pullFromSheets(): Promise<{
     properties: Property[];
     tenants: Tenant[];
     payments: Payment[];
+    repairRequests: RepairRequest[];
   }> {
     if (!this.isConnected()) throw new Error('Google Sheets not connected');
     
@@ -234,6 +274,17 @@ class GoogleSheetsService {
       );
       const paymentsData = await paymentsResponse.json();
       
+      // Pull repair requests
+      const repairsResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Repairs!A2:J1000`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+      const repairsData = await repairsResponse.json();
+      
       // Convert back to objects
       const properties: Property[] = (propertiesData.values || []).map((row: string[]) => ({
         id: row[0],
@@ -264,7 +315,20 @@ class GoogleSheetsService {
         description: row[6]
       }));
       
-      return { properties, tenants, payments };
+      const repairRequests: RepairRequest[] = (repairsData.values || []).map((row: string[]) => ({
+        id: row[0],
+        tenantId: row[1],
+        propertyId: row[2],
+        title: row[3],
+        description: row[4],
+        priority: row[5] as RepairRequest['priority'],
+        status: row[6] as RepairRequest['status'],
+        dateSubmitted: row[7],
+        dateCompleted: row[8] || undefined,
+        category: row[9]
+      }));
+      
+      return { properties, tenants, payments, repairRequests };
     } catch (error) {
       console.error('Error pulling from Google Sheets:', error);
       throw error;

@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
 import { Plus, Home, Users, DollarSign, Settings, MapPin, Calendar, Grid3X3, List } from 'lucide-react';
-import { properties, tenants } from '../data/mockData';
+import type { useData } from '../hooks/useData';
+import type { Property } from '../types';
 
-export const PropertyManagement: React.FC = () => {
+interface PropertyManagementProps {
+  dataHook: ReturnType<typeof useData>;
+}
+
+export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook }) => {
+  const { properties, tenants, addProperty, updateProperty, deleteProperty } = dataHook;
+  
   const [showForm, setShowForm] = useState(false);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [formData, setFormData] = useState({
     address: '',
@@ -12,11 +21,57 @@ export const PropertyManagement: React.FC = () => {
     status: 'vacant'
   });
 
+  const resetForm = () => {
+    setFormData({ address: '', type: 'apartment', rent: '', status: 'vacant' });
+    setEditingProperty(null);
+    setShowForm(false);
+  };
+
+  const handleEdit = (property: Property) => {
+    setEditingProperty(property);
+    setFormData({
+      address: property.address,
+      type: property.type,
+      rent: property.rent.toString(),
+      status: property.status
+    });
+    setShowForm(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setShowForm(false);
-    setFormData({ address: '', type: 'apartment', rent: '', status: 'vacant' });
-    alert('Property added successfully!');
+    
+    const propertyData = {
+      address: formData.address,
+      type: formData.type,
+      rent: parseInt(formData.rent),
+      status: formData.status as Property['status']
+    };
+
+    if (editingProperty) {
+      updateProperty(editingProperty.id, propertyData);
+    } else {
+      addProperty(propertyData);
+    }
+    
+    resetForm();
+  };
+
+  const handleDelete = (id: string) => {
+    const property = properties.find(p => p.id === id);
+    const tenant = tenants.find(t => t.propertyId === id);
+    
+    if (tenant) {
+      if (confirm(`This property has a tenant (${tenant.name}). Deleting the property will also remove the tenant. Are you sure?`)) {
+        deleteProperty(id);
+        setShowDeleteConfirm(null);
+      }
+    } else {
+      if (confirm('Are you sure you want to delete this property?')) {
+        deleteProperty(id);
+        setShowDeleteConfirm(null);
+      }
+    }
   };
 
   return (
@@ -112,10 +167,18 @@ export const PropertyManagement: React.FC = () => {
 
                   <div className="flex space-x-2">
                     <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
-                      View Details
+                      <button 
+                        onClick={() => handleEdit(property)}
+                        className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                      >
+                        Edit
+                      </button>
                     </button>
-                    <button className="flex-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">
-                      Edit
+                    <button 
+                      onClick={() => handleDelete(property.id)}
+                      className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+                    >
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -184,8 +247,18 @@ export const PropertyManagement: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-900">View</button>
-                          <button className="text-gray-600 hover:text-gray-900">Edit</button>
+                          <button 
+                            onClick={() => handleEdit(property)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(property.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -202,7 +275,17 @@ export const PropertyManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Property</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingProperty ? 'Edit Property' : 'Add New Property'}
+              </h3>
+              
+              {editingProperty && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Warning:</strong> Editing this property will overwrite existing data.
+                  </p>
+                </div>
+              )}
               
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -269,11 +352,11 @@ export const PropertyManagement: React.FC = () => {
                     type="submit"
                     className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    Add Property
+                    {editingProperty ? 'Update Property' : 'Add Property'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowForm(false)}
+                    onClick={resetForm}
                     className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
                   >
                     Cancel

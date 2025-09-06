@@ -9,7 +9,7 @@ import { RepairManagement } from './components/RepairManagement';
 import { GoogleSheetsSetup } from './components/GoogleSheetsSetup';
 import { googleSheetsService } from './services/googleSheets';
 import { googleAuthService } from './services/googleAuth';
-import { properties, tenants, payments } from './data/mockData';
+import { useData } from './hooks/useData';
 import type { GoogleSheetsConfig, SyncStatus } from './types';
 
 function App() {
@@ -21,52 +21,43 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
+  const dataHook = useData();
+
   const handleGoogleSheetsConnect = (config: GoogleSheetsConfig) => {
     setGoogleSheetsConfig(config);
   };
 
   const handleSync = async () => {
-    if (!googleSheetsConfig?.connected || !googleSheetsConfig?.spreadsheetId) return;
-    
-    setIsSyncing(true);
     try {
-      // Ensure required sheets exist
-      await googleSheetsService.createSheetsIfNeeded(googleSheetsConfig.spreadsheetId);
-      
-      await googleSheetsService.syncProperties(properties);
-      await googleSheetsService.syncTenants(tenants);
-      await googleSheetsService.syncPayments(payments);
-      
+      const result = await dataHook.syncToGoogleSheets();
       setSyncStatus({
         lastSync: new Date().toISOString(),
-        status: 'success',
-        message: 'Data successfully synced to Google Sheets'
+        status: result.success ? 'success' : 'error',
+        message: result.message
       });
     } catch (error) {
       setSyncStatus({
         lastSync: new Date().toISOString(),
         status: 'error',
-        message: 'Failed to sync data to Google Sheets'
+        message: error instanceof Error ? error.message : 'Failed to sync data to Google Sheets'
       });
-    } finally {
-      setIsSyncing(false);
     }
   };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard onSync={handleSync} isSyncing={isSyncing} />;
+        return <Dashboard onSync={handleSync} isSyncing={dataHook.isSyncing} dataHook={dataHook} />;
       case 'properties':
-        return <PropertyManagement />;
+        return <PropertyManagement dataHook={dataHook} />;
       case 'tenants':
-        return <TenantManagement />;
+        return <TenantManagement dataHook={dataHook} />;
       case 'payments':
-        return <PaymentPortal />;
+        return <PaymentPortal dataHook={dataHook} />;
       case 'repairs':
-        return <RepairManagement />;
+        return <RepairManagement dataHook={dataHook} />;
       default:
-        return <Dashboard onSync={handleSync} isSyncing={isSyncing} />;
+        return <Dashboard onSync={handleSync} isSyncing={dataHook.isSyncing} dataHook={dataHook} />;
     }
   };
 
