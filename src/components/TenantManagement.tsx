@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
 import { Plus, User, Mail, Phone, Calendar, MapPin, FileText, Grid3X3, List } from 'lucide-react';
-import { tenants, properties } from '../data/mockData';
+import type { useData } from '../hooks/useData';
+import type { Tenant } from '../types';
 
-export const TenantManagement: React.FC = () => {
+interface TenantManagementProps {
+  dataHook: ReturnType<typeof useData>;
+}
+
+export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) => {
+  const { tenants, properties, addTenant, updateTenant, deleteTenant } = dataHook;
+  
   const [showForm, setShowForm] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [formData, setFormData] = useState({
     name: '',
@@ -15,9 +23,7 @@ export const TenantManagement: React.FC = () => {
     rentAmount: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowForm(false);
+  const resetForm = () => {
     setFormData({
       name: '',
       email: '',
@@ -27,7 +33,51 @@ export const TenantManagement: React.FC = () => {
       leaseEnd: '',
       rentAmount: ''
     });
-    alert('Tenant added successfully!');
+    setEditingTenant(null);
+    setShowForm(false);
+  };
+
+  const handleEdit = (tenant: Tenant) => {
+    setEditingTenant(tenant);
+    setFormData({
+      name: tenant.name,
+      email: tenant.email,
+      phone: tenant.phone,
+      propertyId: tenant.propertyId,
+      leaseStart: tenant.leaseStart,
+      leaseEnd: tenant.leaseEnd,
+      rentAmount: tenant.rentAmount.toString()
+    });
+    setShowForm(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const tenantData = {
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      propertyId: formData.propertyId,
+      leaseStart: formData.leaseStart,
+      leaseEnd: formData.leaseEnd,
+      rentAmount: parseInt(formData.rentAmount)
+    };
+
+    if (editingTenant) {
+      updateTenant(editingTenant.id, tenantData);
+    } else {
+      addTenant(tenantData);
+    }
+    
+    resetForm();
+  };
+
+  const handleDelete = (id: string) => {
+    const tenant = tenants.find(t => t.id === id);
+    if (tenant && confirm(`Are you sure you want to delete ${tenant.name}? This will also remove all associated payments.`)) {
+      deleteTenant(id);
+    }
   };
 
   return (
@@ -128,11 +178,17 @@ export const TenantManagement: React.FC = () => {
                 </div>
 
                 <div className="flex space-x-2">
-                  <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
-                    View Profile
-                  </button>
-                  <button className="flex-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">
+                  <button 
+                    onClick={() => handleEdit(tenant)}
+                    className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                  >
                     Edit
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(tenant.id)}
+                    className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>
@@ -217,8 +273,18 @@ export const TenantManagement: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-900">View</button>
-                          <button className="text-gray-600 hover:text-gray-900">Edit</button>
+                          <button 
+                            onClick={() => handleEdit(tenant)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(tenant.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -235,7 +301,17 @@ export const TenantManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Tenant</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingTenant ? 'Edit Tenant' : 'Add New Tenant'}
+              </h3>
+              
+              {editingTenant && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Warning:</strong> Editing this tenant will overwrite existing data.
+                  </p>
+                </div>
+              )}
               
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -294,7 +370,7 @@ export const TenantManagement: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Select Property</option>
-                      {properties.filter(p => p.status === 'vacant').map((property) => (
+                      {properties.filter(p => p.status === 'vacant' || (editingTenant && p.id === editingTenant.propertyId)).map((property) => (
                         <option key={property.id} value={property.id}>
                           {property.address} - ${property.rent}/month
                         </option>
@@ -350,11 +426,11 @@ export const TenantManagement: React.FC = () => {
                     type="submit"
                     className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    Add Tenant
+                    {editingTenant ? 'Update Tenant' : 'Add Tenant'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowForm(false)}
+                    onClick={resetForm}
                     className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
                   >
                     Cancel
