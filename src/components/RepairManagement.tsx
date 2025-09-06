@@ -1,11 +1,28 @@
 import React, { useState } from 'react';
-import { Plus, Camera, Calendar, AlertTriangle, CheckCircle, Clock, User, Home, Grid3X3, List } from 'lucide-react';
-import { repairRequests, tenants, properties } from '../data/mockData';
+import { Plus, Camera, Calendar, AlertTriangle, CheckCircle, Clock, User, Home, Grid3X3, List, Edit, Trash2 } from 'lucide-react';
 import type { RepairRequest } from '../types';
+import type { useData } from '../hooks/useData';
 
-export const RepairManagement: React.FC = () => {
+interface RepairManagementProps {
+  dataHook: ReturnType<typeof useData>;
+}
+
+export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) => {
+  const { repairRequests, tenants, properties, addRepairRequest, updateRepairRequest, deleteRepairRequest } = dataHook;
+  
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [showForm, setShowForm] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<RepairRequest | null>(null);
+  const [formData, setFormData] = useState({
+    tenantId: '',
+    propertyId: '',
+    title: '',
+    description: '',
+    priority: 'medium' as RepairRequest['priority'],
+    status: 'submitted' as RepairRequest['status'],
+    category: ''
+  });
 
   const filteredRequests = repairRequests;
 
@@ -38,6 +55,64 @@ export const RepairManagement: React.FC = () => {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      tenantId: '',
+      propertyId: '',
+      title: '',
+      description: '',
+      priority: 'medium',
+      status: 'submitted',
+      category: ''
+    });
+    setEditingRequest(null);
+    setShowForm(false);
+  };
+
+  const handleEdit = (request: RepairRequest) => {
+    setEditingRequest(request);
+    setFormData({
+      tenantId: request.tenantId,
+      propertyId: request.propertyId,
+      title: request.title,
+      description: request.description,
+      priority: request.priority,
+      status: request.status,
+      category: request.category
+    });
+    setShowForm(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const requestData = {
+      tenantId: formData.tenantId,
+      propertyId: formData.propertyId,
+      title: formData.title,
+      description: formData.description,
+      priority: formData.priority,
+      status: formData.status,
+      category: formData.category,
+      dateSubmitted: editingRequest ? editingRequest.dateSubmitted : new Date().toISOString().split('T')[0],
+      ...(formData.status === 'completed' && !editingRequest?.dateCompleted ? { dateCompleted: new Date().toISOString().split('T')[0] } : {})
+    };
+
+    if (editingRequest) {
+      updateRepairRequest(editingRequest.id, requestData);
+    } else {
+      addRepairRequest(requestData);
+    }
+    
+    resetForm();
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this repair request?')) {
+      deleteRepairRequest(id);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -47,22 +122,31 @@ export const RepairManagement: React.FC = () => {
             Manage and track repair requests from tenants
           </p>
         </div>
-        <div className="flex bg-gray-100 rounded-lg p-1">
+        <div className="flex items-center space-x-3">
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('card')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'card' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
           <button
-            onClick={() => setViewMode('card')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'card' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-            }`}
+            onClick={() => setShowForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
-            <Grid3X3 className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <List className="h-4 w-4" />
+            <Plus className="h-4 w-4 mr-2" />
+            Add Repair Request
           </button>
         </div>
       </div>
@@ -147,10 +231,18 @@ export const RepairManagement: React.FC = () => {
 
                 <div className="mt-4 flex space-x-2">
                   <button className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors">
-                    Update Status
+                    <button 
+                      onClick={() => handleEdit(request)}
+                      className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                    >
+                      Edit
+                    </button>
                   </button>
-                  <button className="flex-1 bg-gray-50 text-gray-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">
-                    Contact Tenant
+                  <button 
+                    onClick={() => handleDelete(request.id)}
+                    className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>
@@ -232,8 +324,18 @@ export const RepairManagement: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-900">Update</button>
-                          <button className="text-gray-600 hover:text-gray-900">Contact</button>
+                          <button 
+                            onClick={() => handleEdit(request)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(request.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -252,6 +354,153 @@ export const RepairManagement: React.FC = () => {
           <p className="text-gray-600">
             There are no repair requests matching the current filter.
           </p>
+        </div>
+      )}
+
+      {/* Add/Edit Repair Request Form */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingRequest ? 'Edit Repair Request' : 'Add New Repair Request'}
+              </h3>
+              
+              {editingRequest && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Warning:</strong> Editing this repair request will overwrite existing data.
+                  </p>
+                </div>
+              )}
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tenant
+                    </label>
+                    <select
+                      required
+                      value={formData.tenantId}
+                      onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Tenant</option>
+                      {tenants.map((tenant) => (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Property
+                    </label>
+                    <select
+                      required
+                      value={formData.propertyId}
+                      onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Property</option>
+                      {properties.map((property) => (
+                        <option key={property.id} value={property.id}>
+                          {property.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                        <option key={tenant.id} value={tenant.id}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Brief description of the issue"
+                  />
+                </div>
+                          {tenant.name}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Detailed description of the repair needed"
+                  />
+                </div>
+                        </option>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Priority
+                    </label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value as RepairRequest['priority'] })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                      ))}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value as RepairRequest['status'] })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="submitted">Submitted</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                    </select>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Category
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Plumbing, HVAC, etc."
+                    />
+                  </div>
+                </div>
+                  </div>
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {editingRequest ? 'Update Request' : 'Add Request'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       )}
     </div>
