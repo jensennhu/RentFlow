@@ -1,520 +1,655 @@
-import React, { useState } from 'react';
-import { DollarSign, Calendar, CheckCircle, Clock, AlertCircle, Plus, Edit, Trash2, Grid3X3, List } from 'lucide-react';
-import type { useData } from '../hooks/useData';
-import type { Payment } from '../types';
+// import React, { useState } from 'react';
+// import { DollarSign, Calendar, CheckCircle, Clock, AlertCircle, Plus, Edit, Trash2, Grid3X3, List } from 'lucide-react';
+// import type { useData } from '../hooks/useData';
+// import type { Payment } from '../types';
 
-interface PaymentPortalProps {
-  dataHook: ReturnType<typeof useData>;
-}
+// interface PaymentPortalProps {
+//   dataHook: ReturnType<typeof useData>;
+// }
 
-export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
-  const { payments, tenants, addPayment, updatePayment, deletePayment } = dataHook;
+// export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
+//   const { payments, tenants, addPayment, updatePayment, deletePayment } = dataHook;
   
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'status'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [showForm, setShowForm] = useState(false);
-  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
-  const [formData, setFormData] = useState({
-    tenantId: '',
-    amount: '',
-    date: '',
-    status: 'pending' as Payment['status'],
-    method: '',
-    description: ''
-  });
+//   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
+//   const [searchTerm, setSearchTerm] = useState('');
+//   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'status'>('date');
+//   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+//   const [showForm, setShowForm] = useState(false);
+//   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+//   const [formData, setFormData] = useState({
+//     tenantId: '',
+//     amount: '',
+//     date: '',
+//     status: 'pending' as Payment['status'],
+//     method: '',
+//     description: ''
+//   });
 
-  // Filter and sort payments
-  const filteredAndSortedPayments = payments
-    .filter(payment => {
-      const tenant = tenants.find(t => t.id === payment.tenantId);
-      return (
-        payment.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.method.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (tenant?.name.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-        payment.amount.toString().includes(searchTerm)
-      );
-    })
-    .sort((a, b) => {
-      let aValue: any = a[sortBy];
-      let bValue: any = b[sortBy];
+//   // Filter and sort payments
+//   const filteredAndSortedPayments = payments
+//     .filter(payment => {
+//       const tenant = tenants.find(t => t.id === payment.tenantId);
+//       return (
+//         payment.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+//         payment.method.toLowerCase().includes(searchTerm.toLowerCase()) ||
+//         payment.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+//         (tenant?.name.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+//         payment.amount.toString().includes(searchTerm)
+//       );
+//     })
+//     .sort((a, b) => {
+//       let aValue: any = a[sortBy];
+//       let bValue: any = b[sortBy];
       
-      if (sortBy === 'date') {
-        aValue = new Date(a.date);
-        bValue = new Date(b.date);
-      }
+//       if (sortBy === 'date') {
+//         aValue = new Date(a.date);
+//         bValue = new Date(b.date);
+//       }
       
-      if (sortBy === 'amount') {
-        aValue = a.amount;
-        bValue = b.amount;
-      }
+//       if (sortBy === 'amount') {
+//         aValue = a.amount;
+//         bValue = b.amount;
+//       }
       
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortOrder === 'asc' 
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
-      }
+//       if (typeof aValue === 'string' && typeof bValue === 'string') {
+//         return sortOrder === 'asc' 
+//           ? aValue.localeCompare(bValue)
+//           : bValue.localeCompare(aValue);
+//       }
       
-      if (aValue instanceof Date && bValue instanceof Date) {
-        return sortOrder === 'asc' 
-          ? aValue.getTime() - bValue.getTime()
-          : bValue.getTime() - aValue.getTime();
-      }
+//       if (aValue instanceof Date && bValue instanceof Date) {
+//         return sortOrder === 'asc' 
+//           ? aValue.getTime() - bValue.getTime()
+//           : bValue.getTime() - aValue.getTime();
+//       }
       
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-      }
+//       if (typeof aValue === 'number' && typeof bValue === 'number') {
+//         return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+//       }
       
-      return 0;
-    });
+//       return 0;
+//     });
 
-  const resetForm = () => {
-    setFormData({
-      tenantId: '',
-      amount: '',
-      date: '',
-      status: 'pending',
-      method: '',
-      description: ''
-    });
-    setEditingPayment(null);
-    setShowForm(false);
-  };
+//   const resetForm = () => {
+//     setFormData({
+//       tenantId: '',
+//       amount: '',
+//       date: '',
+//       status: 'pending',
+//       method: '',
+//       description: ''
+//     });
+//     setEditingPayment(null);
+//     setShowForm(false);
+//   };
 
-  const handleEdit = (payment: Payment) => {
-    setEditingPayment(payment);
-    setFormData({
-      tenantId: payment.tenantId,
-      amount: payment.amount.toString(),
-      date: payment.date,
-      status: payment.status,
-      method: payment.method,
-      description: payment.description
-    });
-    setShowForm(true);
-  };
+//   const handleEdit = (payment: Payment) => {
+//     setEditingPayment(payment);
+//     setFormData({
+//       tenantId: payment.tenantId,
+//       amount: payment.amount.toString(),
+//       date: payment.date,
+//       status: payment.status,
+//       method: payment.method,
+//       description: payment.description
+//     });
+//     setShowForm(true);
+//   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+//   const handleSubmit = (e: React.FormEvent) => {
+//     e.preventDefault();
     
-    const paymentData = {
-      tenantId: formData.tenantId,
-      amount: parseInt(formData.amount),
-      date: formData.date,
-      status: formData.status,
-      method: formData.method,
-      description: formData.description
-    };
+//     const paymentData = {
+//       tenantId: formData.tenantId,
+//       amount: parseInt(formData.amount),
+//       date: formData.date,
+//       status: formData.status,
+//       method: formData.method,
+//       description: formData.description
+//     };
 
-    if (editingPayment) {
-      updatePayment(editingPayment.id, paymentData);
-    } else {
-      addPayment(paymentData);
-    }
+//     if (editingPayment) {
+//       updatePayment(editingPayment.id, paymentData);
+//     } else {
+//       addPayment(paymentData);
+//     }
     
-    resetForm();
-  };
+//     resetForm();
+//   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this payment record?')) {
-      deletePayment(id);
-    }
-  };
+//   const handleDelete = (id: string) => {
+//     if (confirm('Are you sure you want to delete this payment record?')) {
+//       deletePayment(id);
+//     }
+//   };
 
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Payment Management</h2>
-          <p className="text-gray-600">
-            Track and manage rental payments
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('card')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'card' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Payment
-          </button>
-        </div>
-      </div>
+//   return (
+//     <div className="p-6">
+//       <div className="flex items-center justify-between mb-6">
+//         <div>
+//           <h2 className="text-2xl font-bold text-gray-900">Payment Management</h2>
+//           <p className="text-gray-600">
+//             Track and manage rental payments
+//           </p>
+//         </div>
+//         <div className="flex items-center space-x-3">
+//           <div className="flex bg-gray-100 rounded-lg p-1">
+//             <button
+//               onClick={() => setViewMode('card')}
+//               className={`p-2 rounded-md transition-colors ${
+//                 viewMode === 'card' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+//               }`}
+//             >
+//               <Grid3X3 className="h-4 w-4" />
+//             </button>
+//             <button
+//               onClick={() => setViewMode('table')}
+//               className={`p-2 rounded-md transition-colors ${
+//                 viewMode === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+//               }`}
+//             >
+//               <List className="h-4 w-4" />
+//             </button>
+//           </div>
+//           <button
+//             onClick={() => setShowForm(true)}
+//             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+//           >
+//             <Plus className="h-4 w-4 mr-2" />
+//             Add Payment
+//           </button>
+//         </div>
+//       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Collected</p>
-              <p className="text-xl font-bold text-green-600">
-                ${payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-              </p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-xl font-bold text-yellow-600">
-                ${payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-              </p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Overdue</p>
-              <p className="text-xl font-bold text-red-600">
-                ${payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-              </p>
-            </div>
-            <AlertCircle className="h-8 w-8 text-red-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">This Month</p>
-              <p className="text-xl font-bold text-blue-600">
-                ${payments.filter(p => new Date(p.date).getMonth() === new Date().getMonth()).reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
-              </p>
-            </div>
-            <Calendar className="h-8 w-8 text-blue-600" />
-          </div>
-        </div>
-      </div>
+//       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+//         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">Total Collected</p>
+//               <p className="text-xl font-bold text-green-600">
+//                 ${payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+//               </p>
+//             </div>
+//             <CheckCircle className="h-8 w-8 text-green-600" />
+//           </div>
+//         </div>
+//         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">Pending</p>
+//               <p className="text-xl font-bold text-yellow-600">
+//                 ${payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+//               </p>
+//             </div>
+//             <Clock className="h-8 w-8 text-yellow-600" />
+//           </div>
+//         </div>
+//         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">Overdue</p>
+//               <p className="text-xl font-bold text-red-600">
+//                 ${payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+//               </p>
+//             </div>
+//             <AlertCircle className="h-8 w-8 text-red-600" />
+//           </div>
+//         </div>
+//         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+//           <div className="flex items-center justify-between">
+//             <div>
+//               <p className="text-sm text-gray-600">This Month</p>
+//               <p className="text-xl font-bold text-blue-600">
+//                 ${payments.filter(p => new Date(p.date).getMonth() === new Date().getMonth()).reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+//               </p>
+//             </div>
+//             <Calendar className="h-8 w-8 text-blue-600" />
+//           </div>
+//         </div>
+//       </div>
 
-      {/* Search and Sort Controls */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search payments..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <div className="flex gap-2">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="date">Sort by Date</option>
-            <option value="amount">Sort by Amount</option>
-            <option value="status">Sort by Status</option>
-          </select>
-          <button
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            {sortOrder === 'asc' ? '↑' : '↓'}
-          </button>
-        </div>
-      </div>
+//       {/* Search and Sort Controls */}
+//       <div className="mb-6 flex flex-col sm:flex-row gap-4">
+//         <div className="flex-1">
+//           <input
+//             type="text"
+//             placeholder="Search payments..."
+//             value={searchTerm}
+//             onChange={(e) => setSearchTerm(e.target.value)}
+//             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//           />
+//         </div>
+//         <div className="flex gap-2">
+//           <select
+//             value={sortBy}
+//             onChange={(e) => setSortBy(e.target.value as any)}
+//             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//           >
+//             <option value="date">Sort by Date</option>
+//             <option value="amount">Sort by Amount</option>
+//             <option value="status">Sort by Status</option>
+//           </select>
+//           <button
+//             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+//             className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+//           >
+//             {sortOrder === 'asc' ? '↑' : '↓'}
+//           </button>
+//         </div>
+//       </div>
 
-      {viewMode === 'table' ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Payment History</h3>
-        </div>
+//       {viewMode === 'table' ? (
+//         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+//         <div className="px-6 py-4 border-b border-gray-200">
+//           <h3 className="text-lg font-semibold text-gray-900">Payment History</h3>
+//         </div>
         
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tenant
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Method
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAndSortedPayments.map((payment) => {
-                const tenant = tenants.find(t => t.id === payment.tenantId);
-                return (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(payment.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {tenant?.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {payment.description}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {payment.method}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      ${payment.amount.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        payment.status === 'paid' ? 'bg-green-100 text-green-800' :
-                        payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {payment.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => handleEdit(payment)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(payment.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAndSortedPayments.map((payment) => {
-            const tenant = tenants.find(t => t.id === payment.tenantId);
-            return (
-              <div key={payment.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-lg ${
-                      payment.status === 'paid' ? 'bg-green-50' :
-                      payment.status === 'pending' ? 'bg-yellow-50' :
-                      'bg-red-50'
-                    }`}>
-                      {payment.status === 'paid' ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : payment.status === 'pending' ? (
-                        <Clock className="h-5 w-5 text-yellow-600" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 text-red-600" />
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">${payment.amount.toLocaleString()}</h3>
-                      <p className="text-sm text-gray-600">{tenant?.name}</p>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    payment.status === 'paid' ? 'bg-green-100 text-green-800' :
-                    payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {payment.status}
-                  </span>
-                </div>
+//         <div className="overflow-x-auto">
+//           <table className="min-w-full divide-y divide-gray-200">
+//             <thead className="bg-gray-50">
+//               <tr>
+//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                   Date
+//                 </th>
+//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                   Tenant
+//                 </th>
+//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                   Description
+//                 </th>
+//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                   Method
+//                 </th>
+//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                   Amount
+//                 </th>
+//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                   Status
+//                 </th>
+//                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+//                   Actions
+//                 </th>
+//               </tr>
+//             </thead>
+//             <tbody className="bg-white divide-y divide-gray-200">
+//               {filteredAndSortedPayments.map((payment) => {
+//                 const tenant = tenants.find(t => t.id === payment.tenantId);
+//                 return (
+//                   <tr key={payment.id} className="hover:bg-gray-50">
+//                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+//                       {new Date(payment.date).toLocaleDateString()}
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+//                       {tenant?.name}
+//                     </td>
+//                     <td className="px-6 py-4 text-sm text-gray-900">
+//                       {payment.description}
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+//                       {payment.method}
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+//                       ${payment.amount.toLocaleString()}
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap">
+//                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+//                         payment.status === 'paid' ? 'bg-green-100 text-green-800' :
+//                         payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+//                         'bg-red-100 text-red-800'
+//                       }`}>
+//                         {payment.status}
+//                       </span>
+//                     </td>
+//                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+//                       <div className="flex space-x-2">
+//                         <button 
+//                           onClick={() => handleEdit(payment)}
+//                           className="text-blue-600 hover:text-blue-900"
+//                         >
+//                           <Edit className="h-4 w-4" />
+//                         </button>
+//                         <button 
+//                           onClick={() => handleDelete(payment.id)}
+//                           className="text-red-600 hover:text-red-900"
+//                         >
+//                           <Trash2 className="h-4 w-4" />
+//                         </button>
+//                       </div>
+//                     </td>
+//                   </tr>
+//                 );
+//               })}
+//             </tbody>
+//           </table>
+//         </div>
+//         </div>
+//       ) : (
+//         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+//           {filteredAndSortedPayments.map((payment) => {
+//             const tenant = tenants.find(t => t.id === payment.tenantId);
+//             return (
+//               <div key={payment.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+//                 <div className="flex items-start justify-between mb-4">
+//                   <div className="flex items-center space-x-3">
+//                     <div className={`p-2 rounded-lg ${
+//                       payment.status === 'paid' ? 'bg-green-50' :
+//                       payment.status === 'pending' ? 'bg-yellow-50' :
+//                       'bg-red-50'
+//                     }`}>
+//                       {payment.status === 'paid' ? (
+//                         <CheckCircle className="h-5 w-5 text-green-600" />
+//                       ) : payment.status === 'pending' ? (
+//                         <Clock className="h-5 w-5 text-yellow-600" />
+//                       ) : (
+//                         <AlertCircle className="h-5 w-5 text-red-600" />
+//                       )}
+//                     </div>
+//                     <div>
+//                       <h3 className="font-semibold text-gray-900">${payment.amount.toLocaleString()}</h3>
+//                       <p className="text-sm text-gray-600">{tenant?.name}</p>
+//                     </div>
+//                   </div>
+//                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+//                     payment.status === 'paid' ? 'bg-green-100 text-green-800' :
+//                     payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+//                     'bg-red-100 text-red-800'
+//                   }`}>
+//                     {payment.status}
+//                   </span>
+//                 </div>
 
-                <div className="space-y-2 text-sm text-gray-600 mb-4">
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    {new Date(payment.date).toLocaleDateString()}
-                  </div>
-                  <div className="flex items-center">
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    {payment.method}
-                  </div>
-                  <p className="text-gray-700">{payment.description}</p>
-                </div>
+//                 <div className="space-y-2 text-sm text-gray-600 mb-4">
+//                   <div className="flex items-center">
+//                     <Calendar className="h-4 w-4 mr-2" />
+//                     {new Date(payment.date).toLocaleDateString()}
+//                   </div>
+//                   <div className="flex items-center">
+//                     <DollarSign className="h-4 w-4 mr-2" />
+//                     {payment.method}
+//                   </div>
+//                   <p className="text-gray-700">{payment.description}</p>
+//                 </div>
 
-                <div className="flex space-x-2">
-                  <button 
-                    onClick={() => handleEdit(payment)}
-                    className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(payment.id)}
-                    className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+//                 <div className="flex space-x-2">
+//                   <button 
+//                     onClick={() => handleEdit(payment)}
+//                     className="flex-1 bg-blue-50 text-blue-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+//                   >
+//                     Edit
+//                   </button>
+//                   <button 
+//                     onClick={() => handleDelete(payment.id)}
+//                     className="flex-1 bg-red-50 text-red-600 py-2 px-3 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+//                   >
+//                     Delete
+//                   </button>
+//                 </div>
+//               </div>
+//             );
+//           })}
+//         </div>
+//       )}
 
-      {/* Add/Edit Payment Form */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {editingPayment ? 'Edit Payment' : 'Add New Payment'}
-              </h3>
+//       {/* Add/Edit Payment Form */}
+//       {showForm && (
+//         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+//           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+//             <div className="p-6">
+//               <h3 className="text-lg font-semibold text-gray-900 mb-4">
+//                 {editingPayment ? 'Edit Payment' : 'Add New Payment'}
+//               </h3>
               
-              {editingPayment && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Warning:</strong> Editing this payment will overwrite existing data.
-                  </p>
-                </div>
-              )}
+//               {editingPayment && (
+//                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+//                   <p className="text-sm text-yellow-800">
+//                     <strong>Warning:</strong> Editing this payment will overwrite existing data.
+//                   </p>
+//                 </div>
+//               )}
               
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tenant
-                  </label>
-                  <select
-                    required
-                    value={formData.tenantId}
-                    onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select Tenant</option>
-                    {tenants.map((tenant) => (
-                      <option key={tenant.id} value={tenant.id}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Amount
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="1200"
-                    />
-                  </div>
-                        {tenant.name}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-                      </option>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as Payment['status'] })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="paid">Paid</option>
-                      <option value="overdue">Overdue</option>
-                    </select>
-                  </div>
-                    ))}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Payment Method
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.method}
-                      onChange={(e) => setFormData({ ...formData, method: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Bank Transfer, Credit Card, etc."
-                    />
-                  </div>
-                </div>
-                  </select>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="January 2024 Rent"
-                  />
-                </div>
-                </div>
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    {editingPayment ? 'Update Payment' : 'Add Payment'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+//               <form onSubmit={handleSubmit} className="space-y-4">
+//                 <div>
+//                   <label className="block text-sm font-medium text-gray-700 mb-2">
+//                     Tenant
+//                   </label>
+//                   <select
+//                     required
+//                     value={formData.tenantId}
+//                     onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
+//                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//                   >
+//                     <option value="">Select Tenant</option>
+//                     {tenants.map((tenant) => (
+//                       <option key={tenant.id} value={tenant.id}>
+//                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+//                   <div>
+//                     <label className="block text-sm font-medium text-gray-700 mb-2">
+//                       Amount
+//                     </label>
+//                     <input
+//                       type="number"
+//                       required
+//                       value={formData.amount}
+//                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+//                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//                       placeholder="1200"
+//                     />
+//                   </div>
+//                         {tenant.name}
+//                   <div>
+//                     <label className="block text-sm font-medium text-gray-700 mb-2">
+//                       Date
+//                     </label>
+//                     <input
+//                       type="date"
+//                       required
+//                       value={formData.date}
+//                       onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+//                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//                     />
+//                   </div>
+//                 </div>
+//                       </option>
+//                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+//                   <div>
+//                     <label className="block text-sm font-medium text-gray-700 mb-2">
+//                       Status
+//                     </label>
+//                     <select
+//                       value={formData.status}
+//                       onChange={(e) => setFormData({ ...formData, status: e.target.value as Payment['status'] })}
+//                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//                     >
+//                       <option value="pending">Pending</option>
+//                       <option value="paid">Paid</option>
+//                       <option value="overdue">Overdue</option>
+//                     </select>
+//                   </div>
+//                     ))}
+//                   <div>
+//                     <label className="block text-sm font-medium text-gray-700 mb-2">
+//                       Payment Method
+//                     </label>
+//                     <input
+//                       type="text"
+//                       required
+//                       value={formData.method}
+//                       onChange={(e) => setFormData({ ...formData, method: e.target.value })}
+//                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//                       placeholder="Bank Transfer, Credit Card, etc."
+//                     />
+//                   </div>
+//                 </div>
+//                   </select>
+//                 <div>
+//                   <label className="block text-sm font-medium text-gray-700 mb-2">
+//                     Description
+//                   </label>
+//                   <input
+//                     type="text"
+//                     required
+//                     value={formData.description}
+//                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+//                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+//                     placeholder="January 2024 Rent"
+//                   />
+//                 </div>
+//                 </div>
+//                 <div className="flex space-x-3 pt-4">
+//                   <button
+//                     type="submit"
+//                     className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+//                   >
+//                     {editingPayment ? 'Update Payment' : 'Add Payment'}
+//                   </button>
+//                   <button
+//                     type="button"
+//                     onClick={resetForm}
+//                     className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+//                   >
+//                     Cancel
+//                   </button>
+//                 </div>
+//               </form>
+//             </div>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+{/* Add/Edit Payment Form */}
+{showForm && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          {editingPayment ? 'Edit Payment' : 'Add New Payment'}
+        </h3>
+
+        {editingPayment && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              <strong>Warning:</strong> Editing this payment will overwrite existing data.
+            </p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Tenant Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tenant
+            </label>
+            <select
+              required
+              value={formData.tenantId}
+              onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select Tenant</option>
+              {tenants.map((tenant) => (
+                <option key={tenant.id} value={tenant.id}>
+                  {tenant.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Amount & Date */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Amount
+              </label>
+              <input
+                type="number"
+                required
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="1200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Date
+              </label>
+              <input
+                type="date"
+                required
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
           </div>
-        </div>
-      )}
+
+          {/* Status & Method */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as Payment['status'] })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Payment Method
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.method}
+                onChange={(e) => setFormData({ ...formData, method: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Bank Transfer, Credit Card, etc."
+              />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="January 2024 Rent"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex space-x-3 pt-4">
+            <button
+              type="submit"
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {editingPayment ? 'Update Payment' : 'Add Payment'}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
-  );
-};
+  </div>
+)}
