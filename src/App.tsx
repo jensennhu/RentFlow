@@ -29,7 +29,7 @@ function App() {
 
   const handleSync = async () => {
     try {
-      const result = await dataHook.syncToGoogleSheets();
+      const result = await dataHook.syncWithGoogleSheets();
       setSyncStatus({
         lastSync: new Date().toISOString(),
         status: result.success ? 'success' : 'error',
@@ -39,7 +39,7 @@ function App() {
       setSyncStatus({
         lastSync: new Date().toISOString(),
         status: 'error',
-        message: error instanceof Error ? error.message : 'Failed to sync data to Google Sheets'
+        message: error instanceof Error ? error.message : 'Failed to sync data with Google Sheets'
       });
     }
   };

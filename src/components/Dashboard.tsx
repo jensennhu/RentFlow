@@ -43,12 +43,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
             {isSyncing ? (
               <>
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>Syncing...</span>
+                <span>Syncing with Sheets...</span>
               </>
             ) : (
               <>
                 <Database className="h-4 w-4" />
-                <span>Sync to Sheets</span>
+                <span>Sync with Sheets</span>
               </>
             )}
           </button>

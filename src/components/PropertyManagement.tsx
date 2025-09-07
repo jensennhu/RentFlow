@@ -13,7 +13,10 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
   const [showForm, setShowForm] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'address' | 'type' | 'rent' | 'status'>('address');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [formData, setFormData] = useState({
     address: '',
     type: 'apartment',
@@ -21,6 +24,34 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
     status: 'vacant'
   });
 
+  // Filter and sort properties
+  const filteredAndSortedProperties = properties
+    .filter(property => 
+      property.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      property.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      property.status.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      let aValue = a[sortBy];
+      let bValue = b[sortBy];
+      
+      if (sortBy === 'rent') {
+        aValue = a.rent;
+        bValue = b.rent;
+      }
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortOrder === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      
+      return 0;
+    });
   const resetForm = () => {
     setFormData({ address: '', type: 'apartment', rent: '', status: 'vacant' });
     setEditingProperty(null);
@@ -110,9 +141,39 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
         </div>
       </div>
 
+      {/* Search and Sort Controls */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search properties..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="address">Sort by Address</option>
+            <option value="type">Sort by Type</option>
+            <option value="rent">Sort by Rent</option>
+            <option value="status">Sort by Status</option>
+          </select>
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            {sortOrder === 'asc' ? '↑' : '↓'}
+          </button>
+        </div>
+      </div>
       {viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {properties.map((property) => {
+          {filteredAndSortedProperties.map((property) => {
             const tenant = tenants.find(t => t.propertyId === property.id);
             
             return (
@@ -213,7 +274,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {properties.map((property) => {
+                {filteredAndSortedProperties.map((property) => {
                   const tenant = tenants.find(t => t.propertyId === property.id);
                   return (
                     <tr key={property.id} className="hover:bg-gray-50">

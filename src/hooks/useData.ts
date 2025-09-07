@@ -136,6 +136,121 @@ export const useData = () => {
     }
   }, [properties, tenants, payments, repairRequests]);
 
+  // Pull from Google Sheets
+  const pullFromGoogleSheets = useCallback(async () => {
+    if (!googleSheetsService.isConnected()) {
+      throw new Error('Google Sheets not connected');
+    }
+
+    setIsSyncing(true);
+    try {
+      const config = googleSheetsService.getConfig();
+      if (!config?.spreadsheetId) {
+        throw new Error('No spreadsheet selected');
+      }
+
+      // Pull all data from Google Sheets
+      const data = await googleSheetsService.pullFromSheets();
+      
+      // Update local state with pulled data
+      setProperties(data.properties);
+      setTenants(data.tenants);
+      setPayments(data.payments);
+      setRepairRequests(data.repairRequests);
+
+      return {
+        success: true,
+        message: 'Data successfully pulled from Google Sheets'
+      };
+    } catch (error) {
+      console.error('Pull error:', error);
+      return {
+        success: false,
+        message: 'Failed to pull data from Google Sheets'
+      };
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  // Bidirectional sync
+  const syncWithGoogleSheets = useCallback(async () => {
+    if (!googleSheetsService.isConnected()) {
+      throw new Error('Google Sheets not connected');
+    }
+
+    setIsSyncing(true);
+    try {
+      const config = googleSheetsService.getConfig();
+      if (!config?.spreadsheetId) {
+        throw new Error('No spreadsheet selected');
+      }
+
+      // Ensure required sheets exist
+      await googleSheetsService.createSheetsIfNeeded(config.spreadsheetId);
+      
+      // First pull any changes from Google Sheets
+      const pulledData = await googleSheetsService.pullFromSheets();
+      
+      // Merge with local data (local data takes precedence for conflicts)
+      const mergedProperties = [...properties];
+      const mergedTenants = [...tenants];
+      const mergedPayments = [...payments];
+      const mergedRepairRequests = [...repairRequests];
+      
+      // Add any new items from Google Sheets that don't exist locally
+      pulledData.properties.forEach(sheetProperty => {
+        if (!mergedProperties.find(p => p.id === sheetProperty.id)) {
+          mergedProperties.push(sheetProperty);
+        }
+      });
+      
+      pulledData.tenants.forEach(sheetTenant => {
+        if (!mergedTenants.find(t => t.id === sheetTenant.id)) {
+          mergedTenants.push(sheetTenant);
+        }
+      });
+      
+      pulledData.payments.forEach(sheetPayment => {
+        if (!mergedPayments.find(p => p.id === sheetPayment.id)) {
+          mergedPayments.push(sheetPayment);
+        }
+      });
+      
+      pulledData.repairRequests.forEach(sheetRequest => {
+        if (!mergedRepairRequests.find(r => r.id === sheetRequest.id)) {
+          mergedRepairRequests.push(sheetRequest);
+        }
+      });
+      
+      // Update local state
+      setProperties(mergedProperties);
+      setTenants(mergedTenants);
+      setPayments(mergedPayments);
+      setRepairRequests(mergedRepairRequests);
+      
+      // Push merged data back to Google Sheets
+      await Promise.all([
+        googleSheetsService.syncProperties(mergedProperties),
+        googleSheetsService.syncTenants(mergedTenants),
+        googleSheetsService.syncPayments(mergedPayments),
+        googleSheetsService.syncRepairRequests(mergedRepairRequests)
+      ]);
+
+      return {
+        success: true,
+        message: 'Data successfully synced with Google Sheets'
+      };
+    } catch (error) {
+      console.error('Bidirectional sync error:', error);
+      return {
+        success: false,
+        message: 'Failed to sync with Google Sheets'
+      };
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [properties, tenants, payments, repairRequests]);
   return {
     // Data
     properties,
@@ -165,6 +280,8 @@ export const useData = () => {
     deleteRepairRequest,
     
     // Sync
-    syncToGoogleSheets
+    syncToGoogleSheets,
+    pullFromGoogleSheets,
+    syncWithGoogleSheets
   };
 };

@@ -11,7 +11,10 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
   const { repairRequests, tenants, properties, addRepairRequest, updateRepairRequest, deleteRepairRequest } = dataHook;
   
   const [filterStatus, setFilterStatus] = useState('all');
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'dateSubmitted' | 'priority' | 'status' | 'title'>('dateSubmitted');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showForm, setShowForm] = useState(false);
   const [editingRequest, setEditingRequest] = useState<RepairRequest | null>(null);
   const [formData, setFormData] = useState({
@@ -24,11 +27,59 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
     category: ''
   });
 
-  const filteredRequests = repairRequests;
+  // Filter and sort repair requests
+  const filteredAndSortedRequests = repairRequests
+    .filter(request => {
+      const tenant = tenants.find(t => t.id === request.tenantId);
+      const property = properties.find(p => p.id === request.propertyId);
+      const matchesSearch = (
+        request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.priority.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (tenant?.name.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+        (property?.address.toLowerCase().includes(searchTerm.toLowerCase()) || false)
+      );
+      
+      const matchesStatus = filterStatus === 'all' || request.status === filterStatus;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      let aValue: any = a[sortBy];
+      let bValue: any = b[sortBy];
+      
+      if (sortBy === 'dateSubmitted') {
+        aValue = new Date(a.dateSubmitted);
+        bValue = new Date(b.dateSubmitted);
+      }
+      
+      if (sortBy === 'priority') {
+        const priorityOrder = { 'urgent': 4, 'high': 3, 'medium': 2, 'low': 1 };
+        aValue = priorityOrder[a.priority];
+        bValue = priorityOrder[b.priority];
+      }
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortOrder === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+      
+      if (aValue instanceof Date && bValue instanceof Date) {
+        return sortOrder === 'asc' 
+          ? aValue.getTime() - bValue.getTime()
+          : bValue.getTime() - aValue.getTime();
+      }
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      
+      return 0;
+    });
 
-  const displayRequests = filterStatus === 'all' 
-    ? filteredRequests 
-    : filteredRequests.filter(r => r.status === filterStatus);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -173,10 +224,40 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
         ))}
       </div>
 
+      {/* Search and Sort Controls */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search repair requests..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="dateSubmitted">Sort by Date</option>
+            <option value="priority">Sort by Priority</option>
+            <option value="status">Sort by Status</option>
+            <option value="title">Sort by Title</option>
+          </select>
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            {sortOrder === 'asc' ? '↑' : '↓'}
+          </button>
+        </div>
+      </div>
       {/* Repair Requests Grid */}
       {viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayRequests.map((request) => {
+          {filteredAndSortedRequests.map((request) => {
             const StatusIcon = getStatusIcon(request.status);
             const tenant = tenants.find(t => t.id === request.tenantId);
             const property = properties.find(p => p.id === request.propertyId);
@@ -282,7 +363,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {displayRequests.map((request) => {
+                {filteredAndSortedRequests.map((request) => {
                   const StatusIcon = getStatusIcon(request.status);
                   const tenant = tenants.find(t => t.id === request.tenantId);
                   const property = properties.find(p => p.id === request.propertyId);
@@ -347,7 +428,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
         </div>
       )}
 
-      {displayRequests.length === 0 && (
+      {filteredAndSortedRequests.length === 0 && (
         <div className="text-center py-12">
           <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No repair requests found</h3>

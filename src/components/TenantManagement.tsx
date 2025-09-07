@@ -12,7 +12,10 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
   
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'email' | 'rentAmount' | 'leaseEnd'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -23,6 +26,49 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
     rentAmount: ''
   });
 
+  // Filter and sort tenants
+  const filteredAndSortedTenants = tenants
+    .filter(tenant => {
+      const property = properties.find(p => p.id === tenant.propertyId);
+      return (
+        tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.phone.includes(searchTerm) ||
+        (property?.address.toLowerCase().includes(searchTerm.toLowerCase()) || false)
+      );
+    })
+    .sort((a, b) => {
+      let aValue: any = a[sortBy];
+      let bValue: any = b[sortBy];
+      
+      if (sortBy === 'leaseEnd') {
+        aValue = new Date(a.leaseEnd);
+        bValue = new Date(b.leaseEnd);
+      }
+      
+      if (sortBy === 'rentAmount') {
+        aValue = a.rentAmount;
+        bValue = b.rentAmount;
+      }
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortOrder === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+      
+      if (aValue instanceof Date && bValue instanceof Date) {
+        return sortOrder === 'asc' 
+          ? aValue.getTime() - bValue.getTime()
+          : bValue.getTime() - aValue.getTime();
+      }
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      
+      return 0;
+    });
   const resetForm = () => {
     setFormData({
       name: '',
@@ -116,9 +162,39 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
         </div>
       </div>
 
+      {/* Search and Sort Controls */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search tenants..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="name">Sort by Name</option>
+            <option value="email">Sort by Email</option>
+            <option value="rentAmount">Sort by Rent</option>
+            <option value="leaseEnd">Sort by Lease End</option>
+          </select>
+          <button
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            {sortOrder === 'asc' ? '↑' : '↓'}
+          </button>
+        </div>
+      </div>
       {viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tenants.map((tenant) => {
+          {filteredAndSortedTenants.map((tenant) => {
             const property = properties.find(p => p.id === tenant.propertyId);
             const leaseEnd = new Date(tenant.leaseEnd);
             const today = new Date();
@@ -225,7 +301,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {tenants.map((tenant) => {
+                {filteredAndSortedTenants.map((tenant) => {
                   const property = properties.find(p => p.id === tenant.propertyId);
                   const leaseEnd = new Date(tenant.leaseEnd);
                   const today = new Date();
