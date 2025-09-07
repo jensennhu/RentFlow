@@ -388,6 +388,13 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                     >
                       <option value="">Select Tenant</option>
                       {tenants.map((tenant) => (
+                        <option key={tenant.id} value={tenant.id}>
+                          {tenant.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Property
@@ -407,7 +414,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                     </select>
                   </div>
                 </div>
-                        <option key={tenant.id} value={tenant.id}>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Title
@@ -421,7 +428,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                     placeholder="Brief description of the issue"
                   />
                 </div>
-                          {tenant.name}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Description
@@ -435,7 +442,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                     placeholder="Detailed description of the repair needed"
                   />
                 </div>
-                        </option>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -452,7 +459,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                       <option value="urgent">Urgent</option>
                     </select>
                   </div>
-                      ))}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Status
@@ -467,7 +474,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                       <option value="completed">Completed</option>
                     </select>
                   </div>
-                    </select>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Category
@@ -482,7 +489,6 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                     />
                   </div>
                 </div>
-                  </div>
                 <div className="flex space-x-3 pt-4">
                   <button
                     type="submit"

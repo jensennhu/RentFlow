@@ -50,7 +50,6 @@ class GoogleSheetsService {
       const spreadsheet = await response.json();
       const existingSheets = spreadsheet.sheets.map((sheet: any) => sheet.properties.title);
       
-      const requiredSheets = ['Properties', 'Tenants', 'Payments'];
       const requiredSheets = ['Properties', 'Tenants', 'Payments', 'Repairs'];
       const sheetsToCreate = requiredSheets.filter(sheet => !existingSheets.includes(sheet));
 
