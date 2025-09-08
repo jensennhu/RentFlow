@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { DollarSign, Calendar, CheckCircle, Clock, AlertCircle, Plus, Edit, Trash2, Grid3X3, List } from 'lucide-react';
-import type { useData } from '../hooks/useData';
+import React, { useState, useEffect } from 'react';
+import { Calendar, CheckCircle, Clock, AlertCircle, Plus, Edit, Trash2, Grid3X3, List } from 'lucide-react';
+import { useData } from '../hooks/useData';
 import type { Payment } from '../types';
 
 interface PaymentPortalProps {
@@ -16,6 +16,8 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     propertyId: '',
     amount: '',
@@ -26,17 +28,34 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     rentMonth: ''
   });
 
+  // Auto-update status as user types
+  useEffect(() => {
+    const amount = parseInt(formData.amount || '0', 10);
+    const amountPaid = parseInt(formData.amountPaid || '0', 10);
+
+    let newStatus: Payment['status'] = 'Not Paid Yet';
+    if (amountPaid === amount && amount > 0) {
+      newStatus = 'Paid';
+    } else if (amountPaid > 0 && amountPaid < amount) {
+      newStatus = 'Partially Paid';
+    }
+
+    if (formData.status !== newStatus) {
+      setFormData((prev) => ({ ...prev, status: newStatus }));
+    }
+  }, [formData.amount, formData.amountPaid]);
+
   // Filter and sort payments
   const filteredAndSortedPayments = payments
     .filter(payment => {
       const property = properties.find(p => p.id === payment.propertyId);
       const tenant = tenants.find(t => t.propertyId === payment.propertyId);
       return (
-        payment.rentMonth.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.method.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (tenant?.name.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-        (property?.address.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+        (payment.rentMonth || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (payment.method || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (payment.status || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (tenant?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (property?.address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         payment.amount.toString().includes(searchTerm)
       );
     })
@@ -85,6 +104,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     });
     setEditingPayment(null);
     setShowForm(false);
+    setFormError(null);
   };
 
   const handleEdit = (payment: Payment) => {
@@ -103,11 +123,37 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setFormError(null);
+
+    const amount = parseInt(formData.amount || '0', 10);
+    const amountPaid = parseInt(formData.amountPaid || '0', 10);
+
+    if (!formData.propertyId) {
+      setFormError("Please select a property.");
+      return;
+    }
+    if (!formData.rentMonth.trim()) {
+      setFormError("Please enter the rent month.");
+      return;
+    }
+    if (amount <= 0) {
+      setFormError("Amount must be greater than 0.");
+      return;
+    }
+    if (amountPaid < 0) {
+      setFormError("Amount paid cannot be negative.");
+      return;
+    }
+    if (amountPaid > amount) {
+      setFormError("Amount paid cannot exceed total amount.");
+      return;
+    }
+
+    // Status already auto-calculated in useEffect
     const paymentData = {
       propertyId: formData.propertyId,
-      amount: parseInt(formData.amount),
-      amountPaid: parseInt(formData.amountPaid),
+      amount,
+      amountPaid,
       date: formData.date,
       status: formData.status,
       method: formData.method,
@@ -119,7 +165,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     } else {
       addPayment(paymentData);
     }
-    
+
     resetForm();
   };
 
@@ -247,147 +293,104 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       {/* Table or Card View */}
       {viewMode === 'table' ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          {/* Table ... (unchanged from your code) */}
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Property</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tenant</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rent Month</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Paid</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredAndSortedPayments.map((payment) => {
+                const property = properties.find(p => p.id === payment.propertyId);
+                const tenant = tenants.find(t => t.propertyId === payment.propertyId);
+
+                return (
+                  <tr key={payment.id}>
+                    <td className="px-6 py-4 text-sm text-gray-900">{property?.address || 'N/A'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{tenant?.name || 'N/A'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{payment.rentMonth}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">${payment.amount.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">${payment.amountPaid.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          payment.status === 'Paid'
+                            ? 'bg-green-100 text-green-800'
+                            : payment.status === 'Partially Paid'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {payment.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{payment.method || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{payment.date || '-'}</td>
+                    <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
+                      <button
+                        onClick={() => handleEdit(payment)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(payment.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Cards ... (unchanged from your code) */}
-        </div>
-      )}
+          {filteredAndSortedPayments.map((payment) => {
+            const property = properties.find(p => p.id === payment.propertyId);
+            const tenant = tenants.find(t => t.propertyId === payment.propertyId);
 
-      {/* Add/Edit Payment Form */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {editingPayment ? 'Edit Payment' : 'Add New Payment'}
-              </h3>
-
-              {editingPayment && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Warning:</strong> Editing this payment will overwrite existing data.
-                  </p>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Property */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Property</label>
-                  <select
-                    required
-                    value={formData.propertyId}
-                    onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            return (
+              <div key={payment.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-gray-900">{property?.address || 'N/A'}</h4>
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${
+                      payment.status === 'Paid'
+                        ? 'bg-green-100 text-green-800'
+                        : payment.status === 'Partially Paid'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
                   >
-                    <option value="">Select Property</option>
-                    {properties.map((property) => (
-                      <option key={property.id} value={property.id}>
-                        {property.address}
-                      </option>
-                    ))}
-                  </select>
+                    {payment.status}
+                  </span>
                 </div>
 
-                {/* Amount & Amount Paid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
-                    <input
-                      type="number"
-                      required
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="1200"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid</label>
-                    <input
-                      type="number"
-                      required
-                      value={formData.amountPaid}
-                      onChange={(e) => setFormData({ ...formData, amountPaid: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="1200"
-                    />
-                  </div>
-                </div>
+                <p className="text-sm text-gray-600 mb-1"><strong>Tenant:</strong> {tenant?.name || 'N/A'}</p>
+                <p className="text-sm text-gray-600 mb-1"><strong>Rent Month:</strong> {payment.rentMonth}</p>
+                <p className="text-sm text-gray-600 mb-1"><strong>Amount:</strong> ${payment.amount.toLocaleString()}</p>
+                <p className="text-sm text-gray-600 mb-1"><strong>Paid:</strong> ${payment.amountPaid.toLocaleString()}</p>
+                <p className="text-sm text-gray-600 mb-1"><strong>Method:</strong> {payment.method || '-'}</p>
+                <p className="text-sm text-gray-600 mb-3"><strong>Date:</strong> {payment.date || '-'}</p>
 
-                {/* Date & Rent Month */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                    <input
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Rent Month</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.rentMonth}
-                      onChange={(e) => setFormData({ ...formData, rentMonth: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="September 2025"
-                    />
-                  </div>
-                </div>
-
-                {/* Status & Method */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as Payment['status'] })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="Not Paid Yet">Not Paid Yet</option>
-                      <option value="Paid">Paid</option>
-                      <option value="Partially Paid">Partially Paid</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                    <input
-                      type="text"
-                      value={formData.method}
-                      onChange={(e) => setFormData({ ...formData, method: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Bank Transfer, Credit Card, etc."
-                    />
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex space-x-3 pt-4">
+                <div className="flex space-x-3">
                   <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                    onClick={() => handleEdit(payment)}
+                    className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center"
                   >
-                    {editingPayment ? 'Update Payment' : 'Add Payment'}
+                    <Edit className="h-4 w-4 mr-1" /> Edit
                   </button>
                   <button
-                    type="button"
-                    onClick={resetForm}
-                    className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+                    onClick={() => handleDelete(payment.id)}
+                    className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100
