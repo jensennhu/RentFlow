@@ -19,7 +19,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [formData, setFormData] = useState({
     address: '',
-    type: 'apartment',
     rent: '',
     status: 'vacant'
   });
@@ -53,7 +52,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
       return 0;
     });
   const resetForm = () => {
-    setFormData({ address: '', type: 'apartment', rent: '', status: 'vacant' });
+    setFormData({ address: '', rent: '', status: 'vacant' });
     setEditingProperty(null);
     setShowForm(false);
   };
@@ -62,7 +61,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
     setEditingProperty(property);
     setFormData({
       address: property.address,
-      type: property.type,
       rent: property.rent.toString(),
       status: property.status
     });
@@ -74,7 +72,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
     
     const propertyData = {
       address: formData.address,
-      type: formData.type,
       rent: parseInt(formData.rent),
       status: formData.status as Property['status']
     };
@@ -159,7 +156,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="address">Sort by Address</option>
-            <option value="type">Sort by Type</option>
             <option value="rent">Sort by Rent</option>
             <option value="status">Sort by Status</option>
           </select>
@@ -255,9 +251,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Property
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Rent
@@ -361,22 +354,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="123 Main Street, Unit A"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Property Type
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="apartment">Apartment</option>
-                    <option value="house">House</option>
-                    <option value="condo">Condo</option>
-                    <option value="townhouse">Townhouse</option>
-                  </select>
                 </div>
 
                 <div>

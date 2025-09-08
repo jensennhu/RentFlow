@@ -8,7 +8,7 @@ interface PaymentPortalProps {
 }
 
 export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
-  const { payments, tenants, addPayment, updatePayment, deletePayment } = dataHook;
+  const { payments, properties, tenants, addPayment, updatePayment, deletePayment } = dataHook;
   
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,23 +17,26 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [formData, setFormData] = useState({
-    tenantId: '',
+    propertyId: '',
     amount: '',
+    amountPaid: '',
     date: '',
-    status: 'pending' as Payment['status'],
+    status: 'Not Paid Yet' as Payment['status'],
     method: '',
-    description: ''
+    rentMonth: ''
   });
 
   // Filter and sort payments
   const filteredAndSortedPayments = payments
     .filter(payment => {
-      const tenant = tenants.find(t => t.id === payment.tenantId);
+      const property = properties.find(p => p.id === payment.propertyId);
+      const tenant = tenants.find(t => t.propertyId === payment.propertyId);
       return (
-        payment.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.rentMonth.toLowerCase().includes(searchTerm.toLowerCase()) ||
         payment.method.toLowerCase().includes(searchTerm.toLowerCase()) ||
         payment.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (tenant?.name.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+        (property?.address.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
         payment.amount.toString().includes(searchTerm)
       );
     })
@@ -72,12 +75,13 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
 
   const resetForm = () => {
     setFormData({
-      tenantId: '',
+      propertyId: '',
       amount: '',
+      amountPaid: '',
       date: '',
-      status: 'pending',
+      status: 'Not Paid Yet',
       method: '',
-      description: ''
+      rentMonth: ''
     });
     setEditingPayment(null);
     setShowForm(false);
@@ -86,12 +90,13 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const handleEdit = (payment: Payment) => {
     setEditingPayment(payment);
     setFormData({
-      tenantId: payment.tenantId,
+      propertyId: payment.propertyId,
       amount: payment.amount.toString(),
+      amountPaid: payment.amountPaid.toString(),
       date: payment.date,
       status: payment.status,
       method: payment.method,
-      description: payment.description
+      rentMonth: payment.rentMonth
     });
     setShowForm(true);
   };
@@ -100,12 +105,13 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     e.preventDefault();
     
     const paymentData = {
-      tenantId: formData.tenantId,
+      propertyId: formData.propertyId,
       amount: parseInt(formData.amount),
+      amountPaid: parseInt(formData.amountPaid),
       date: formData.date,
       status: formData.status,
       method: formData.method,
-      description: formData.description
+      rentMonth: formData.rentMonth
     };
 
     if (editingPayment) {
@@ -167,7 +173,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
             <div>
               <p className="text-sm text-gray-600">Total Collected</p>
               <p className="text-xl font-bold text-green-600">
-                ${payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                ${payments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.amountPaid, 0).toLocaleString()}
               </p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-600" />
@@ -178,7 +184,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
             <div>
               <p className="text-sm text-gray-600">Pending</p>
               <p className="text-xl font-bold text-yellow-600">
-                ${payments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                ${payments.filter(p => p.status === 'Not Paid Yet').reduce((sum, p) => sum + (p.amount - p.amountPaid), 0).toLocaleString()}
               </p>
             </div>
             <Clock className="h-8 w-8 text-yellow-600" />
@@ -187,9 +193,9 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Overdue</p>
+              <p className="text-sm text-gray-600">Partially Paid</p>
               <p className="text-xl font-bold text-red-600">
-                ${payments.filter(p => p.status === 'overdue').reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                ${payments.filter(p => p.status === 'Partially Paid').reduce((sum, p) => sum + p.amountPaid, 0).toLocaleString()}
               </p>
             </div>
             <AlertCircle className="h-8 w-8 text-red-600" />
@@ -200,7 +206,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
             <div>
               <p className="text-sm text-gray-600">This Month</p>
               <p className="text-xl font-bold text-blue-600">
-                ${payments.filter(p => new Date(p.date).getMonth() === new Date().getMonth()).reduce((sum, p) => sum + p.amount, 0).toLocaleString()}
+                ${payments.filter(p => p.date && new Date(p.date).getMonth() === new Date().getMonth()).reduce((sum, p) => sum + p.amountPaid, 0).toLocaleString()}
               </p>
             </div>
             <Calendar className="h-8 w-8 text-blue-600" />
@@ -267,25 +273,25 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Tenant */}
+                {/* Property */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tenant</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Property</label>
                   <select
                     required
-                    value={formData.tenantId}
-                    onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
+                    value={formData.propertyId}
+                    onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select Tenant</option>
-                    {tenants.map((tenant) => (
-                      <option key={tenant.id} value={tenant.id}>
-                        {tenant.name}
+                    <option value="">Select Property</option>
+                    {properties.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.address}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Amount & Date */}
+                {/* Amount & Amount Paid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
@@ -299,13 +305,38 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid</label>
+                    <input
+                      type="number"
+                      required
+                      value={formData.amountPaid}
+                      onChange={(e) => setFormData({ ...formData, amountPaid: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="1200"
+                    />
+                  </div>
+                </div>
+
+                {/* Date & Rent Month */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
                     <input
                       type="date"
-                      required
                       value={formData.date}
                       onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rent Month</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.rentMonth}
+                      onChange={(e) => setFormData({ ...formData, rentMonth: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="September 2025"
                     />
                   </div>
                 </div>
@@ -319,35 +350,21 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as Payment['status'] })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="pending">Pending</option>
-                      <option value="paid">Paid</option>
-                      <option value="overdue">Overdue</option>
+                      <option value="Not Paid Yet">Not Paid Yet</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Partially Paid">Partially Paid</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
                     <input
                       type="text"
-                      required
                       value={formData.method}
                       onChange={(e) => setFormData({ ...formData, method: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Bank Transfer, Credit Card, etc."
                     />
                   </div>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="January 2024 Rent"
-                  />
                 </div>
 
                 {/* Actions */}

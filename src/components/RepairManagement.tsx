@@ -24,7 +24,8 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
     description: '',
     priority: 'medium' as RepairRequest['priority'],
     status: 'submitted' as RepairRequest['status'],
-    category: ''
+    category: '',
+    closeNotes: ''
   });
 
   // Filter and sort repair requests
@@ -114,7 +115,8 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
       description: '',
       priority: 'medium',
       status: 'submitted',
-      category: ''
+      category: '',
+      closeNotes: ''
     });
     setEditingRequest(null);
     setShowForm(false);
@@ -129,7 +131,8 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
       description: request.description,
       priority: request.priority,
       status: request.status,
-      category: request.category
+      category: request.category,
+      closeNotes: request.closeNotes || ''
     });
     setShowForm(true);
   };
@@ -145,8 +148,9 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
       priority: formData.priority,
       status: formData.status,
       category: formData.category,
+      closeNotes: formData.closeNotes,
       dateSubmitted: editingRequest ? editingRequest.dateSubmitted : new Date().toISOString().split('T')[0],
-      ...(formData.status === 'completed' && !editingRequest?.dateCompleted ? { dateCompleted: new Date().toISOString().split('T')[0] } : {})
+      ...(formData.status === 'completed' && !editingRequest?.dateResolved ? { dateResolved: new Date().toISOString().split('T')[0] } : {})
     };
 
     if (editingRequest) {
@@ -302,10 +306,10 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                   </span>
                 </div>
 
-                {request.dateCompleted && (
+                {request.dateResolved && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <p className="text-xs text-green-600">
-                      Completed: {new Date(request.dateCompleted).toLocaleDateString()}
+                      Resolved: {new Date(request.dateResolved).toLocaleDateString()}
                     </p>
                   </div>
                 )}
@@ -358,6 +362,9 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                     Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Close Notes
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -402,6 +409,13 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(request.dateSubmitted).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {request.closeNotes ? (
+                          <span className="truncate max-w-xs block">{request.closeNotes}</span>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
@@ -569,6 +583,20 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
                       placeholder="Plumbing, HVAC, etc."
                     />
                   </div>
+                </div>
+
+                {/* Close Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Close Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={formData.closeNotes}
+                    onChange={(e) => setFormData({ ...formData, closeNotes: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Notes about resolution or closure"
+                  />
                 </div>
                 <div className="flex space-x-3 pt-4">
                   <button

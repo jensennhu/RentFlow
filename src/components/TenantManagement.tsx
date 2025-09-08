@@ -23,7 +23,9 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
     propertyId: '',
     leaseStart: '',
     leaseEnd: '',
-    rentAmount: ''
+    rentAmount: '',
+    paymentMethod: '' as Tenant['paymentMethod'],
+    leaseType: '' as Tenant['leaseType']
   });
 
   // Filter and sort tenants
@@ -77,7 +79,9 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       propertyId: '',
       leaseStart: '',
       leaseEnd: '',
-      rentAmount: ''
+      rentAmount: '',
+      paymentMethod: '',
+      leaseType: ''
     });
     setEditingTenant(null);
     setShowForm(false);
@@ -92,7 +96,9 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       propertyId: tenant.propertyId,
       leaseStart: tenant.leaseStart,
       leaseEnd: tenant.leaseEnd,
-      rentAmount: tenant.rentAmount.toString()
+      rentAmount: tenant.rentAmount.toString(),
+      paymentMethod: tenant.paymentMethod,
+      leaseType: tenant.leaseType
     });
     setShowForm(true);
   };
@@ -107,7 +113,9 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       propertyId: formData.propertyId,
       leaseStart: formData.leaseStart,
       leaseEnd: formData.leaseEnd,
-      rentAmount: parseInt(formData.rentAmount)
+      rentAmount: parseInt(formData.rentAmount),
+      paymentMethod: formData.paymentMethod,
+      leaseType: formData.leaseType
     };
 
     if (editingTenant) {
@@ -251,6 +259,22 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                     <FileText className="h-4 w-4 mr-2" />
                     <span className="text-sm font-medium">${tenant.rentAmount}/month</span>
                   </div>
+
+                  {tenant.paymentMethod && (
+                    <div className="flex items-center text-gray-600">
+                      <span className="text-sm">Payment: {tenant.paymentMethod}</span>
+                    </div>
+                  )}
+
+                  {tenant.leaseType && (
+                    <div className="flex items-center text-gray-600">
+                      <span className="text-sm">Lease: {tenant.leaseType}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center text-gray-600">
+                    <span className="text-sm">Renewal: {new Date(tenant.leaseRenewal).toLocaleDateString()}</span>
+                  </div>
                 </div>
 
                 <div className="flex space-x-2">
@@ -291,6 +315,12 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Rent
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Payment Method
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Lease Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -495,6 +525,39 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="1200"
                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Payment Method
+                    </label>
+                    <select
+                      value={formData.paymentMethod}
+                      onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as Tenant['paymentMethod'] })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Payment Method</option>
+                      <option value="Zelle">Zelle</option>
+                      <option value="Direct Deposit">Direct Deposit</option>
+                      <option value="Cash">Cash</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Lease Type
+                    </label>
+                    <select
+                      value={formData.leaseType}
+                      onChange={(e) => setFormData({ ...formData, leaseType: e.target.value as Tenant['leaseType'] })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Lease Type</option>
+                      <option value="Yearly">Yearly</option>
+                      <option value="Monthly">Monthly</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex space-x-3 pt-4">

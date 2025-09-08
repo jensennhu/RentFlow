@@ -290,7 +290,9 @@ class GoogleSheetsService {
         address: row[1],
         rent: parseInt(row[2]),
         status: row[3] as Property['status']
-      }));
+      }
+      )
+      )
       
       const tenants: Tenant[] = (tenantsData.values || []).map((row: string[]) => ({
         id: row[0],
@@ -301,6 +303,9 @@ class GoogleSheetsService {
         leaseStart: row[5],
         leaseEnd: row[6],
         rentAmount: parseInt(row[7]),
+        paymentMethod: row[8] as Tenant['paymentMethod'],
+        leaseType: row[9] as Tenant['leaseType'],
+        leaseRenewal: row[10]
         paymentMethod: row[8] as Tenant['paymentMethod'],
         leaseType: row[9] as Tenant['leaseType'],
         leaseRenewal: row[10]
@@ -319,16 +324,17 @@ class GoogleSheetsService {
       
       const repairRequests: RepairRequest[] = (repairsData.values || []).map((row: string[]) => ({
         id: row[0],
-        tenantId: row[1],
+        propertyId: row[1],
         propertyId: row[2],
         title: row[3],
         description: row[4],
         priority: row[5] as RepairRequest['priority'],
         status: row[6] as RepairRequest['status'],
-        dateSubmitted: row[7],
-        dateResolved: row[8] || undefined,
-        category: row[9],
-        closeNotes: row[10] || undefined
+        amountPaid: parseInt(row[3]),
+        date: row[4],
+        status: row[5] as Payment['status'],
+        method: row[6],
+        rentMonth: row[7]
       }));
       
       return { properties, tenants, payments, repairRequests };
@@ -340,3 +346,6 @@ class GoogleSheetsService {
 }
 
 export const googleSheetsService = new GoogleSheetsService();
+        dateResolved: row[8] || undefined,
+        category: row[9],
+        closeNotes: row[10] || undefined

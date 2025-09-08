@@ -14,7 +14,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
   
   const totalProperties = properties.length;
   const occupiedProperties = properties.filter(p => p.status === 'occupied').length;
-  const totalRevenue = payments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+  const totalRevenue = payments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.amountPaid, 0);
   const pendingRepairs = repairRequests.filter(r => r.status !== 'completed').length;
   const urgentRepairs = repairRequests.filter(r => r.priority === 'urgent' && r.status !== 'completed').length;
   const isConnected = googleAuthService.isConnected();
