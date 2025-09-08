@@ -87,14 +87,14 @@ class GoogleSheetsService {
     const accessToken = await googleAuthService.getValidAccessToken();
     
     // Convert properties to 2D array for Google Sheets
-    const headers = ['ID', 'Address', 'Type', 'Rent', 'Status'];
-    const rows = properties.map(p => [p.id, p.address, p.type, p.rent.toString(), p.status]);
+    const headers = ['ID', 'Address', 'Rent', 'Status'];
+    const rows = properties.map(p => [p.id, p.address, p.rent.toString(), p.status]);
     
     const values = [headers, ...rows];
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A1:E${values.length}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A1:D${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
@@ -122,17 +122,17 @@ class GoogleSheetsService {
     
     const accessToken = await googleAuthService.getValidAccessToken();
     
-    const headers = ['ID', 'Name', 'Email', 'Phone', 'Property ID', 'Lease Start', 'Lease End', 'Rent Amount'];
+    const headers = ['ID', 'Name', 'Email', 'Phone', 'Property ID', 'Lease Start', 'Lease End', 'Rent Amount', 'Payment Method', 'Lease Type', 'Lease Renewal'];
     const rows = tenants.map(t => [
       t.id, t.name, t.email, t.phone, t.propertyId, 
-      t.leaseStart, t.leaseEnd, t.rentAmount.toString()
+      t.leaseStart, t.leaseEnd, t.rentAmount.toString(), t.paymentMethod, t.leaseType, t.leaseRenewal
     ]);
     
     const values = [headers, ...rows];
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A1:H${values.length}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A1:K${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
@@ -160,16 +160,16 @@ class GoogleSheetsService {
     
     const accessToken = await googleAuthService.getValidAccessToken();
     
-    const headers = ['ID', 'Tenant ID', 'Amount', 'Date', 'Status', 'Method', 'Description'];
+    const headers = ['ID', 'Property ID', 'Amount', 'Amount Paid', 'Date', 'Status', 'Method', 'Rent Month'];
     const rows = payments.map(p => [
-      p.id, p.tenantId, p.amount.toString(), p.date, p.status, p.method, p.description
+      p.id, p.propertyId, p.amount.toString(), p.amountPaid.toString(), p.date, p.status, p.method, p.rentMonth
     ]);
     
     const values = [headers, ...rows];
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A1:G${values.length}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A1:H${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
@@ -197,16 +197,16 @@ class GoogleSheetsService {
     
     const accessToken = await googleAuthService.getValidAccessToken();
     
-    const headers = ['ID', 'Tenant ID', 'Property ID', 'Title', 'Description', 'Priority', 'Status', 'Date Submitted', 'Date Completed', 'Category'];
+    const headers = ['ID', 'Tenant ID', 'Property ID', 'Title', 'Description', 'Priority', 'Status', 'Date Submitted', 'Date Resolved', 'Category', 'Close Notes'];
     const rows = repairRequests.map(r => [
-      r.id, r.tenantId, r.propertyId, r.title, r.description, r.priority, r.status, r.dateSubmitted, r.dateCompleted || '', r.category
+      r.id, r.tenantId, r.propertyId, r.title, r.description, r.priority, r.status, r.dateSubmitted, r.dateResolved || '', r.category, r.closeNotes || ''
     ]);
     
     const values = [headers, ...rows];
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Repairs!A1:J${values.length}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Repairs!A1:K${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
@@ -242,7 +242,7 @@ class GoogleSheetsService {
     try {
       // Pull properties
       const propertiesResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A2:E1000`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A2:D1000`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -253,7 +253,7 @@ class GoogleSheetsService {
       
       // Pull tenants
       const tenantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A2:H1000`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Tenants!A2:K1000`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -264,7 +264,7 @@ class GoogleSheetsService {
       
       // Pull payments
       const paymentsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A2:G1000`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Payments!A2:H1000`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -275,7 +275,7 @@ class GoogleSheetsService {
       
       // Pull repair requests
       const repairsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Repairs!A2:J1000`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Repairs!A2:K1000`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -288,9 +288,8 @@ class GoogleSheetsService {
       const properties: Property[] = (propertiesData.values || []).map((row: string[]) => ({
         id: row[0],
         address: row[1],
-        type: row[2],
-        rent: parseInt(row[3]),
-        status: row[4] as Property['status']
+        rent: parseInt(row[2]),
+        status: row[3] as Property['status']
       }));
       
       const tenants: Tenant[] = (tenantsData.values || []).map((row: string[]) => ({
@@ -301,17 +300,21 @@ class GoogleSheetsService {
         propertyId: row[4],
         leaseStart: row[5],
         leaseEnd: row[6],
-        rentAmount: parseInt(row[7])
+        rentAmount: parseInt(row[7]),
+        paymentMethod: row[8] as Tenant['paymentMethod'],
+        leaseType: row[9] as Tenant['leaseType'],
+        leaseRenewal: row[10]
       }));
       
       const payments: Payment[] = (paymentsData.values || []).map((row: string[]) => ({
         id: row[0],
-        tenantId: row[1],
+        propertyId: row[1],
         amount: parseInt(row[2]),
-        date: row[3],
-        status: row[4] as Payment['status'],
-        method: row[5],
-        description: row[6]
+        amountPaid: parseInt(row[3]),
+        date: row[4],
+        status: row[5] as Payment['status'],
+        method: row[6],
+        rentMonth: row[7]
       }));
       
       const repairRequests: RepairRequest[] = (repairsData.values || []).map((row: string[]) => ({
@@ -323,8 +326,9 @@ class GoogleSheetsService {
         priority: row[5] as RepairRequest['priority'],
         status: row[6] as RepairRequest['status'],
         dateSubmitted: row[7],
-        dateCompleted: row[8] || undefined,
-        category: row[9]
+        dateResolved: row[8] || undefined,
+        category: row[9],
+        closeNotes: row[10] || undefined
       }));
       
       return { properties, tenants, payments, repairRequests };

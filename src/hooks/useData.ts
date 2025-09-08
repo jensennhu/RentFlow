@@ -17,6 +17,10 @@ export const useData = () => {
       id: Date.now().toString()
     };
     setProperties(prev => [...prev, newProperty]);
+    
+    // Generate payment records for the new property
+    generateUpcomingPayments([newProperty]);
+    
     return newProperty;
   }, []);
 
@@ -26,15 +30,21 @@ export const useData = () => {
 
   const deleteProperty = useCallback((id: string) => {
     setProperties(prev => prev.filter(p => p.id !== id));
-    // Also remove associated tenants
+    // Also remove associated tenants and payments
     setTenants(prev => prev.filter(t => t.propertyId !== id));
+    setPayments(prev => prev.filter(p => p.propertyId !== id));
   }, []);
 
   // Tenants CRUD
   const addTenant = useCallback((tenant: Omit<Tenant, 'id'>) => {
+    // Calculate lease renewal date (last day of month, one month before lease end)
+    const leaseEndDate = new Date(tenant.leaseEnd);
+    const renewalDate = new Date(leaseEndDate.getFullYear(), leaseEndDate.getMonth() - 1, 0);
+    
     const newTenant: Tenant = {
       ...tenant,
-      id: Date.now().toString()
+      id: Date.now().toString(),
+      leaseRenewal: renewalDate.toISOString().split('T')[0]
     };
     setTenants(prev => [...prev, newTenant]);
     // Update property status to occupied
@@ -45,6 +55,12 @@ export const useData = () => {
   }, []);
 
   const updateTenant = useCallback((id: string, updates: Partial<Tenant>) => {
+    // Recalculate lease renewal if lease end date changes
+    if (updates.leaseEnd) {
+      const leaseEndDate = new Date(updates.leaseEnd);
+      const renewalDate = new Date(leaseEndDate.getFullYear(), leaseEndDate.getMonth() - 1, 0);
+      updates.leaseRenewal = renewalDate.toISOString().split('T')[0];
+    }
     setTenants(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   }, []);
 
@@ -57,8 +73,6 @@ export const useData = () => {
         p.id === tenant.propertyId ? { ...p, status: 'vacant' as const } : p
       ));
     }
-    // Remove associated payments
-    setPayments(prev => prev.filter(p => p.tenantId !== id));
   }, [tenants]);
 
   // Payments CRUD
@@ -72,6 +86,19 @@ export const useData = () => {
   }, []);
 
   const updatePayment = useCallback((id: string, updates: Partial<Payment>) => {
+    // Auto-update status based on amount paid
+    if (updates.amountPaid !== undefined && updates.amount !== undefined) {
+      const amountPaid = updates.amountPaid;
+      const totalAmount = updates.amount;
+      
+      if (amountPaid === 0) {
+        updates.status = 'Not Paid Yet';
+      } else if (amountPaid >= totalAmount) {
+        updates.status = 'Paid';
+      } else {
+        updates.status = 'Partially Paid';
+      }
+    }
     setPayments(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
   }, []);
 
@@ -90,11 +117,48 @@ export const useData = () => {
   }, []);
 
   const updateRepairRequest = useCallback((id: string, updates: Partial<RepairRequest>) => {
+    // Auto-set date resolved when status changes to completed
+    if (updates.status === 'completed' && !updates.dateResolved) {
+      updates.dateResolved = new Date().toISOString().split('T')[0];
+    }
     setRepairRequests(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
   }, []);
 
   const deleteRepairRequest = useCallback((id: string) => {
     setRepairRequests(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  // Generate upcoming payment records
+  const generateUpcomingPayments = useCallback((propertiesToProcess: Property[] = properties) => {
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const rentMonthString = nextMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    
+    propertiesToProcess.forEach(property => {
+      // Check if payment record already exists for next month
+      const existingPayment = payments.find(p => 
+        p.propertyId === property.id && p.rentMonth === rentMonthString
+      );
+      
+      if (!existingPayment && property.status === 'occupied') {
+        const newPayment: Payment = {
+          id: Date.now().toString() + property.id,
+          propertyId: property.id,
+          amount: property.rent,
+          amountPaid: 0,
+          date: '',
+          status: 'Not Paid Yet',
+          method: '',
+          rentMonth: rentMonthString
+        };
+        setPayments(prev => [...prev, newPayment]);
+      }
+    });
+  }, [properties, payments]);
+
+  // Auto-generate upcoming payments on component mount
+  React.useEffect(() => {
+    generateUpcomingPayments();
   }, []);
 
   // Sync to Google Sheets

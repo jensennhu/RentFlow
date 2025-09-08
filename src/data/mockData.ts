@@ -4,21 +4,18 @@ export const properties: Property[] = [
   {
     id: '1',
     address: '123 Oak Street, Unit A',
-    type: 'Apartment',
     rent: 1200,
     status: 'occupied'
   },
   {
     id: '2',
     address: '456 Pine Avenue, Unit B',
-    type: 'Apartment',
     rent: 1400,
     status: 'occupied'
   },
   {
     id: '3',
     address: '789 Maple Drive',
-    type: 'House',
     rent: 2000,
     status: 'vacant'
   }
@@ -33,7 +30,10 @@ export const tenants: Tenant[] = [
     propertyId: '1',
     leaseStart: '2024-01-01',
     leaseEnd: '2024-12-31',
-    rentAmount: 1200
+    rentAmount: 1200,
+    paymentMethod: 'Zelle',
+    leaseType: 'Yearly',
+    leaseRenewal: '2024-11-30'
   },
   {
     id: '2',
@@ -43,46 +43,53 @@ export const tenants: Tenant[] = [
     propertyId: '2',
     leaseStart: '2024-02-01',
     leaseEnd: '2025-01-31',
-    rentAmount: 1400
+    rentAmount: 1400,
+    paymentMethod: 'Direct Deposit',
+    leaseType: 'Yearly',
+    leaseRenewal: '2024-12-31'
   }
 ];
 
 export const payments: Payment[] = [
   {
     id: '1',
-    tenantId: '1',
+    propertyId: '1',
     amount: 1200,
+    amountPaid: 1200,
     date: '2024-01-01',
-    status: 'paid',
+    status: 'Paid',
     method: 'Bank Transfer',
-    description: 'January 2024 Rent'
+    rentMonth: 'January 2024'
   },
   {
     id: '2',
-    tenantId: '1',
+    propertyId: '1',
     amount: 1200,
+    amountPaid: 1200,
     date: '2024-02-01',
-    status: 'paid',
+    status: 'Paid',
     method: 'Credit Card',
-    description: 'February 2024 Rent'
+    rentMonth: 'February 2024'
   },
   {
     id: '3',
-    tenantId: '2',
+    propertyId: '2',
     amount: 1400,
+    amountPaid: 1400,
     date: '2024-02-01',
-    status: 'paid',
+    status: 'Paid',
     method: 'Bank Transfer',
-    description: 'February 2024 Rent'
+    rentMonth: 'February 2024'
   },
   {
     id: '4',
-    tenantId: '1',
+    propertyId: '1',
     amount: 1200,
+    amountPaid: 0,
     date: '2024-03-01',
-    status: 'pending',
+    status: 'Not Paid Yet',
     method: 'Credit Card',
-    description: 'March 2024 Rent'
+    rentMonth: 'March 2024'
   }
 ];
 
@@ -96,7 +103,8 @@ export const repairRequests: RepairRequest[] = [
     priority: 'medium',
     status: 'in-progress',
     dateSubmitted: '2024-02-15',
-    category: 'Plumbing'
+    category: 'Plumbing',
+    closeNotes: ''
   },
   {
     id: '2',
@@ -107,7 +115,8 @@ export const repairRequests: RepairRequest[] = [
     priority: 'high',
     status: 'submitted',
     dateSubmitted: '2024-02-20',
-    category: 'Security'
+    category: 'Security',
+    closeNotes: ''
   },
   {
     id: '3',
@@ -118,7 +127,8 @@ export const repairRequests: RepairRequest[] = [
     priority: 'urgent',
     status: 'completed',
     dateSubmitted: '2024-01-30',
-    dateCompleted: '2024-02-02',
-    category: 'HVAC'
+    dateResolved: '2024-02-02',
+    category: 'HVAC',
+    closeNotes: 'Replaced heating unit filter and reset system. Working properly now.'
   }
 ];

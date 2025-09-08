@@ -1,7 +1,6 @@
 export interface Property {
   id: string;
   address: string;
-  type: string;
   rent: number;
   status: 'occupied' | 'vacant' | 'maintenance';
   tenant?: Tenant;
@@ -16,16 +15,20 @@ export interface Tenant {
   leaseStart: string;
   leaseEnd: string;
   rentAmount: number;
+  paymentMethod: 'Zelle' | 'Direct Deposit' | 'Cash' | '';
+  leaseType: 'Yearly' | 'Monthly' | '';
+  leaseRenewal: string;
 }
 
 export interface Payment {
   id: string;
-  tenantId: string;
+  propertyId: string;
   amount: number;
+  amountPaid: number;
   date: string;
-  status: 'paid' | 'pending' | 'overdue';
+  status: 'Paid' | 'Not Paid Yet' | 'Partially Paid';
   method: string;
-  description: string;
+  rentMonth: string;
 }
 
 export interface RepairRequest {
@@ -37,9 +40,10 @@ export interface RepairRequest {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   status: 'submitted' | 'in-progress' | 'completed';
   dateSubmitted: string;
-  dateCompleted?: string;
+  dateResolved?: string;
   category: string;
   images?: string[];
+  closeNotes?: string;
 }
 
 export interface GoogleSheetsConfig {
