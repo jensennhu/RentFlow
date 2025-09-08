@@ -53,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGoogleSheets }) => {
             <button className="p-2 text-gray-400 hover:text-gray-600 relative">
               <Bell className="h-5 w-5" />
               <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                3
+                0
               </span>
             </button>
             
@@ -61,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenGoogleSheets }) => {
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                 <User className="h-4 w-4 text-white" />
               </div>
-              <span className="text-sm font-medium text-gray-700">Alex Morgan</span>
+              <span className="text-sm font-medium text-gray-700">Erika Chan</span>
             </div>
           </div>
         </div>

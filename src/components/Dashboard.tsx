@@ -18,12 +18,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
   const pendingRepairs = repairRequests.filter(r => r.status !== 'completed').length;
   const urgentRepairs = repairRequests.filter(r => r.priority === 'urgent' && r.status !== 'completed').length;
   const isConnected = googleAuthService.isConnected();
+  const occupied_percent = occupiedProperties/totalProperties*100;
 
   const stats = [
-    { label: 'Total Properties', value: totalProperties, icon: Home, color: 'blue' },
-    { label: 'Occupied Units', value: occupiedProperties, icon: Users, color: 'green' },
-    { label: 'Monthly Revenue', value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'emerald' },
-    { label: 'Pending Repairs', value: pendingRepairs, icon: Wrench, color: 'amber' }
+    //{ label: 'Total Properties', value: totalProperties, icon: Home, color: 'blue' },
+    { label: 'Occupied Units', value: `${occupied_percent.toLocaleString()}%`, icon: Users, color: 'green' },
+    { label: 'Pending Repairs', value: pendingRepairs, icon: Wrench, color: 'amber' },
+    { label: 'Monthly Revenue', value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'emerald' }
   ];
 
   return (
