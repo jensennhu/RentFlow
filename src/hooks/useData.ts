@@ -21,10 +21,6 @@ export const useData = () => {
     // Generate payment records for the new property
     generateUpcomingPayments([newProperty]);
     
-    
-    // Generate payment records for the new property
-    generateUpcomingPayments([newProperty]);
-    
     return newProperty;
   }, []);
 
