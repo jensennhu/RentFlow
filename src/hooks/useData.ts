@@ -68,12 +68,6 @@ export const useData = () => {
       const renewalDate = new Date(leaseEndDate.getFullYear(), leaseEndDate.getMonth() - 1, 0);
       updates.leaseRenewal = renewalDate.toISOString().split('T')[0];
     }
-    // Recalculate lease renewal if lease end date changes
-    if (updates.leaseEnd) {
-      const leaseEndDate = new Date(updates.leaseEnd);
-      const renewalDate = new Date(leaseEndDate.getFullYear(), leaseEndDate.getMonth() - 1, 0);
-      updates.leaseRenewal = renewalDate.toISOString().split('T')[0];
-    }
     setTenants(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   }, []);
 
