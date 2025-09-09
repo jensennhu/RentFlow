@@ -73,7 +73,7 @@ export const useData = () => {
     setTenants(prev => prev.filter(t => t.id !== id));
     // Update property status to vacant
     if (tenant) {
-      setProperties(prev => prev.map(p => p.id === tenant.propertyId ? { ...p, status: 'vacant' as const } : p}, [tenants]))};
+      setProperties(prev => prev.map(p => p.id === tenant.propertyId ? { ...p, status: 'vacant' as const } : p, [tenants]))};
 
   // Payments CRUD
   const addPayment = useCallback((payment: Omit<Payment, 'id'>) => {
