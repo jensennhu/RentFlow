@@ -342,7 +342,9 @@ class GoogleSheetsService {
   }
 }
 
-export const googleSheetsService = new GoogleSheetsService();
+export const googleSheetsService: React.FC = () => { new GoogleSheetsService();
         dateResolved: row[8] || undefined,
         category: row[9],
         closeNotes: row[10] || undefined
+
+const Documents: React.FC = () => {
