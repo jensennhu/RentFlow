@@ -42,9 +42,6 @@ export const useData = () => {
 
   // Tenants CRUD
   const addTenant = useCallback((tenant: Omit<Tenant, 'id'>) => {
-    // Calculate lease renewal date (last day of month, one month before lease end)
-    const leaseEndDate = new Date(tenant.leaseEnd);
-    const renewalDate = new Date(leaseEndDate.getFullYear(), leaseEndDate.getMonth() - 1, 0);
     
     // Calculate lease renewal date (last day of month, one month before lease end)
     const leaseEndDate = new Date(tenant.leaseEnd);
