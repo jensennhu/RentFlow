@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Property, Tenant, Payment, RepairRequest } from '../types';
 import { properties as initialProperties, tenants as initialTenants, payments as initialPayments, repairRequests as initialRepairRequests } from '../data/mockData';
 import { googleSheetsService } from '../services/googleSheets';
@@ -172,7 +172,7 @@ export const useData = () => {
   }, [properties, payments]);
 
   // Auto-generate upcoming payments on component mount
-  React.useEffect(() => {
+  useEffect(() => {
     generateUpcomingPayments();
   }, []);
 
