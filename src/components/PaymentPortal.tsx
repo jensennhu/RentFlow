@@ -396,3 +396,4 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                   <button
                     onClick={() => handleDelete(payment.id)}
                     className="flex-1 bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100
+                </button>
