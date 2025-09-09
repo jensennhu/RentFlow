@@ -306,9 +306,6 @@ class GoogleSheetsService {
         paymentMethod: row[8] as Tenant['paymentMethod'],
         leaseType: row[9] as Tenant['leaseType'],
         leaseRenewal: row[10]
-        paymentMethod: row[8] as Tenant['paymentMethod'],
-        leaseType: row[9] as Tenant['leaseType'],
-        leaseRenewal: row[10]
       }));
       
       const payments: Payment[] = (paymentsData.values || []).map((row: string[]) => ({
