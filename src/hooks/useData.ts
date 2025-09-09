@@ -54,9 +54,7 @@ export const useData = () => {
     };
     setTenants(prev => [...prev, newTenant]);
     // Update property status to occupied
-    setProperties(prev => prev.map(p => 
-      p.id === tenant.propertyId ? { ...p, status: 'occupied' as const } : p
-    ));
+    setProperties(prev => prev.map(p => p.id === tenant.propertyId ? { ...p, status: 'occupied' as const } : p));
     return newTenant;
   }, []);
 
