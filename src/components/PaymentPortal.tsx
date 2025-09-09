@@ -400,4 +400,12 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                     <Trash2 className="h-4 w-4 mr-1" /> Delete
                   </button>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
