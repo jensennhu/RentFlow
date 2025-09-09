@@ -168,33 +168,6 @@ export const useData = () => {
       }
     });
   }, [properties, payments]);
-  // Generate upcoming payment records
-  const generateUpcomingPayments = useCallback((propertiesToProcess: Property[] = properties) => {
-    const now = new Date();
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const rentMonthString = nextMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    
-    propertiesToProcess.forEach(property => {
-      // Check if payment record already exists for next month
-      const existingPayment = payments.find(p => 
-        p.propertyId === property.id && p.rentMonth === rentMonthString
-      );
-      
-      if (!existingPayment && property.status === 'occupied') {
-        const newPayment: Payment = {
-          id: Date.now().toString() + property.id,
-          propertyId: property.id,
-          amount: property.rent,
-          amountPaid: 0,
-          date: '',
-          status: 'Not Paid Yet',
-          method: '',
-          rentMonth: rentMonthString
-        };
-        setPayments(prev => [...prev, newPayment]);
-      }
-    });
-  }, [properties, payments]);
 
   // Auto-generate upcoming payments on component mount
   React.useEffect(() => {
