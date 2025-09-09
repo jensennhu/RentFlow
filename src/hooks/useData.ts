@@ -51,7 +51,6 @@ export const useData = () => {
       ...tenant,
       id: Date.now().toString(),
       leaseRenewal: renewalDate.toISOString().split('T')[0]
-      leaseRenewal: renewalDate.toISOString().split('T')[0]
     };
     setTenants(prev => [...prev, newTenant]);
     // Update property status to occupied
