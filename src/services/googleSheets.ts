@@ -306,6 +306,9 @@ class GoogleSheetsService {
         paymentMethod: row[8] as Tenant['paymentMethod'],
         leaseType: row[9] as Tenant['leaseType'],
         leaseRenewal: row[10]
+        paymentMethod: row[8] as Tenant['paymentMethod'],
+        leaseType: row[9] as Tenant['leaseType'],
+        leaseRenewal: row[10]
       }));
       
       const payments: Payment[] = (paymentsData.values || []).map((row: string[]) => ({
@@ -342,9 +345,15 @@ class GoogleSheetsService {
   }
 }
 
-export const googleSheetsService: React.FC = () => { new GoogleSheetsService();
-        dateResolved: row[8] || undefined,
-        category: row[9],
-        closeNotes: row[10] || undefined
+// ✅ initialize service at top-level
+export const googleSheetsService = new GoogleSheetsService();
 
-const Documents: React.FC = () => {
+// ✅ example row-to-object mapping
+function mapRowToObject(row: any[]): YourType {
+  return {
+    // other fields ...
+    dateResolved: row[8] || undefined,
+    category: row[9] || undefined,
+    closeNotes: row[10] || undefined,
+  };
+}
