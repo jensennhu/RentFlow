@@ -321,17 +321,16 @@ class GoogleSheetsService {
       
       const repairRequests: RepairRequest[] = (repairsData.values || []).map((row: string[]) => ({
         id: row[0],
-        propertyId: row[1],
+        tenantId: row[1],
         propertyId: row[2],
         title: row[3],
         description: row[4],
         priority: row[5] as RepairRequest['priority'],
         status: row[6] as RepairRequest['status'],
-        amountPaid: parseInt(row[3]),
-        date: row[4],
-        status: row[5] as Payment['status'],
-        method: row[6],
-        rentMonth: row[7]
+        dateSubmitted: row[7],
+        dateResolved: row[8] || undefined,
+        category: row[9],
+        closeNotes: row[10] || undefined
       }));
       
       return { properties, tenants, payments, repairRequests };
