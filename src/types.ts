@@ -48,21 +48,27 @@ export interface RepairRequest {
 }
 
 export interface GoogleSheetsConfig {
-  spreadsheetId: string;
+  spreadsheetId?: string;
   accessToken: string;
   refreshToken: string;
-  expiresAt: number;
-  userEmail:string;
+  expiryDate: number;
+  connected: boolean;
+  userEmail: string;
 }
 
 export interface GoogleSheet {
-  properties: {
-    sheetId: number;
-    title: string;
-  };
+  id: string;
+  name: string;
+  url: string;
 }
 
 export interface SyncStatus {
+  lastSync: string;
+  status: 'success' | 'error';
+  message: string;
+}
+
+export interface SyncResult {
   success: boolean;
   message: string;
 }

@@ -208,7 +208,7 @@ export const useData = () => {
       console.error('Sync error:', error);
       return {
         success: false,
-        message: 'Failed to sync data to Google Sheets'
+        message: error instanceof Error ? error.message : 'Failed to sync data to Google Sheets'
       };
     } finally {
       setIsSyncing(false);
@@ -245,7 +245,7 @@ export const useData = () => {
       console.error('Pull error:', error);
       return {
         success: false,
-        message: 'Failed to pull data from Google Sheets'
+        message: error instanceof Error ? error.message : 'Failed to pull data from Google Sheets'
       };
     } finally {
       setIsSyncing(false);
@@ -324,12 +324,13 @@ export const useData = () => {
       console.error('Bidirectional sync error:', error);
       return {
         success: false,
-        message: 'Failed to sync with Google Sheets'
+        message: error instanceof Error ? error.message : 'Failed to sync with Google Sheets'
       };
     } finally {
       setIsSyncing(false);
     }
   }, [properties, tenants, payments, repairRequests]);
+
   return {
     // Data
     properties,
