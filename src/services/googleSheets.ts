@@ -87,14 +87,14 @@ class GoogleSheetsService {
     const accessToken = await googleAuthService.getValidAccessToken();
     
     // Convert properties to 2D array for Google Sheets
-    const headers = ['ID', 'Address', 'Rent', 'Status'];
-    const rows = properties.map(p => [p.id, p.address, p.rent.toString(), p.status]);
+    const headers = ['ID', 'Address', 'City', 'State', 'ZipCode',  'Rent', 'Status'];
+    const rows = properties.map(p => [p.id, p.address, p.city, p.state, p.zipcode, p.rent.toString(), p.status]);
     
     const values = [headers, ...rows];
     
     try {
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A1:D${values.length}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A1:F${values.length}?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: {
@@ -242,7 +242,7 @@ class GoogleSheetsService {
     try {
       // Pull properties
       const propertiesResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A2:D1000`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/Properties!A2:F1000`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -288,8 +288,11 @@ class GoogleSheetsService {
       const properties: Property[] = (propertiesData.values || []).map((row: string[]) => ({
         id: row[0],
         address: row[1],
-        rent: parseInt(row[2]),
-        status: row[3] as Property['status']
+        city: row[2],
+        state: row[3],
+        zipcode: row[4],
+        rent: parseInt(row[5]),
+        status: row[6] as Property['status']
       }
       )
       )
