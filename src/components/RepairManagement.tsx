@@ -114,7 +114,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
       title: '',
       description: '',
       priority: 'medium',
-      status: 'submitted',
+      status: 'pending',
       category: '',
       closeNotes: ''
     });

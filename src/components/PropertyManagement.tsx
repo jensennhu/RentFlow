@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Home, Users, DollarSign, Settings, MapPin, Calendar, Grid3X3, List } from 'lucide-react';
+import { Plus, Home, Users, DollarSign, Settings, MapPin,Edit, Trash2, Calendar, Grid3X3, List } from 'lucide-react';
 import type { useData } from '../hooks/useData';
 import type { Property } from '../types';
 
@@ -15,10 +15,13 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'address' | 'type' | 'rent' | 'status'>('address');
+  const [sortBy, setSortBy] = useState<'address' | 'city'| 'state'| 'zipcode'| 'rent' | 'status'>('address');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [formData, setFormData] = useState({
     address: '',
+    city: '',
+    state: '',
+    zipcode: '',
     rent: '',
     status: 'vacant'
   });
@@ -27,7 +30,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
   const filteredAndSortedProperties = properties
     .filter(property => 
       property.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      property.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
       property.status.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => {
@@ -52,7 +54,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
       return 0;
     });
   const resetForm = () => {
-    setFormData({ address: '', rent: '', status: 'vacant' });
+    setFormData({ address: '', city: '', state: '', zipcode:'', rent: '', status: 'vacant' });
     setEditingProperty(null);
     setShowForm(false);
   };
@@ -61,6 +63,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
     setEditingProperty(property);
     setFormData({
       address: property.address,
+      city: property.city,
+      state: property.state,
+      zipcode: property.zipcode,
       rent: property.rent.toString(),
       status: property.status
     });
@@ -72,6 +77,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
     
     const propertyData = {
       address: formData.address,
+      city: formData.city,
+      state: formData.state,
+      zipcode: formData.zipcode,
       rent: parseInt(formData.rent),
       status: formData.status as Property['status']
     };
@@ -156,6 +164,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="address">Sort by Address</option>
+            <option value="city">Sort by City</option>
+            <option value="state">Sort by State</option>
+            <option value="zipcode">Sort by Zip Code</option>
             <option value="rent">Sort by Rent</option>
             <option value="status">Sort by Status</option>
           </select>
@@ -181,7 +192,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                         <Home className="h-6 w-6 text-blue-600" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">{property.type}</h3>
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                           property.status === 'occupied' ? 'bg-green-100 text-green-800' :
                           property.status === 'vacant' ? 'bg-gray-100 text-gray-800' :
@@ -200,6 +210,16 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                     <div className="flex items-center text-gray-600">
                       <MapPin className="h-4 w-4 mr-2" />
                       <span className="text-sm">{property.address}</span>
+                    </div>
+
+                    <div className="flex items-center text-gray-600">
+                      <span className="text-sm">{property.zipcode}</span>
+                    </div>
+                    <div className="flex items-center text-gray-600">
+                      <span className="text-sm">{property.city}</span>
+                    </div>
+                    <div className="flex items-center text-gray-600">
+                      <span className="text-sm">{property.state}</span>
                     </div>
                     
                     <div className="flex items-center text-gray-600">
@@ -253,6 +273,15 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                     Property
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    City
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    State
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Zip Code
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Rent
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -281,12 +310,26 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                           </div>
                         </div>
                       </td>
+                      
+                      {/* New zipcode column */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {property.type}
+                        {property.zipcode}
                       </td>
+
+                      {/* New city column */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {property.city}
+                      </td>
+
+                      {/* New state column */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {property.state}
+                      </td>
+
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         ${property.rent}/month
                       </td>
+                      
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                           property.status === 'occupied' ? 'bg-green-100 text-green-800' :
@@ -296,22 +339,24 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                           {property.status}
                         </span>
                       </td>
+
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {tenant ? tenant.name : '-'}
                       </td>
+
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
                           <button 
                             onClick={() => handleEdit(property)}
                             className="text-blue-600 hover:text-blue-900"
                           >
-                            Edit
+                            <Edit className="h-4 w-4 mr-1" />
                           </button>
                           <button 
                             onClick={() => handleDelete(property.id)}
                             className="text-red-600 hover:text-red-900"
                           >
-                            Delete
+                            <Trash2 className="h-4 w-4 mr-1" />
                           </button>
                         </div>
                       </td>
@@ -319,6 +364,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                   );
                 })}
               </tbody>
+
             </table>
           </div>
         </div>
@@ -353,6 +399,47 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="123 Main Street, Unit A"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Zipcode
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.zipcode}
+                    onChange={e => setFormData({ ...formData, zipcode: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="12345"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.city}
+                    onChange={e => setFormData({ ...formData, city: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Texas City"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.state}
+                    onChange={e => setFormData({ ...formData, state: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="TX"
                   />
                 </div>
 

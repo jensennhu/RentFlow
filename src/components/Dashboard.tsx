@@ -12,13 +12,20 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
   
-  const totalProperties = properties.length;
-  const occupiedProperties = properties.filter(p => p.status === 'occupied').length;
+  // Filter out properties with id = 0 first (TEST Property)
+  const filteredProperties = properties.filter(p => p.id !== '0');
+
+  const totalProperties = filteredProperties.length;
+  const occupiedProperties = filteredProperties.filter(p => p.status === 'occupied' && p.id !== '0').length;
+
+  // Assuming payments and repairRequests have no id field filtering needs
   const totalRevenue = payments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.amountPaid, 0);
   const pendingRepairs = repairRequests.filter(r => r.status !== 'completed').length;
   const urgentRepairs = repairRequests.filter(r => r.priority === 'urgent' && r.status !== 'completed').length;
+
   const isConnected = googleAuthService.isConnected();
-  const occupied_percent = occupiedProperties/totalProperties*100;
+
+  const occupied_percent = (occupiedProperties / totalProperties) * 100;
 
   const stats = [
     //{ label: 'Total Properties', value: totalProperties, icon: Home, color: 'blue' },
@@ -113,7 +120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
               <div key={property.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{property.address}</p>
-                  <p className="text-sm text-gray-600">{property.type} • ${property.rent}/month</p>
+                  <p className="text-sm text-gray-600">${property.rent}/month</p>
                 </div>
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                   property.status === 'occupied' ? 'bg-green-100 text-green-800' :

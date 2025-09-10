@@ -1,6 +1,9 @@
 export interface Property {
   id: string;
   address: string;
+  zipcode: string;
+  city: string;
+  state: string;
   rent: number;
   status: 'vacant' | 'occupied' | 'maintenance';
 }
@@ -49,6 +52,7 @@ export interface GoogleSheetsConfig {
   accessToken: string;
   refreshToken: string;
   expiresAt: number;
+  userEmail:string;
 }
 
 export interface GoogleSheet {

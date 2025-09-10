@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, User, Mail, Phone, Calendar, MapPin, FileText, Grid3X3, List } from 'lucide-react';
-import type { useData } from '../hooks/useData';
+import { Plus, User, Mail, Phone, Calendar, Edit, Trash2, MapPin, FileText, Grid3X3, List } from 'lucide-react';
+import { useData } from '../hooks/useData'; // ✅ fixed import
 import type { Tenant } from '../types';
 
 interface TenantManagementProps {
@@ -25,7 +25,8 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
     leaseEnd: '',
     rentAmount: '',
     paymentMethod: '' as Tenant['paymentMethod'],
-    leaseType: '' as Tenant['leaseType']
+    leaseType: '' as Tenant['leaseType'],
+    leaseRenewal: null as string | null, // ✅ safer than ''
   });
 
   // Filter and sort tenants
@@ -33,10 +34,10 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
     .filter(tenant => {
       const property = properties.find(p => p.id === tenant.propertyId);
       return (
-        tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tenant.phone.includes(searchTerm) ||
-        (property?.address.toLowerCase().includes(searchTerm.toLowerCase()) || false)
+        tenant.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.phone?.includes(searchTerm) ||
+        (property?.address?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
       );
     })
     .sort((a, b) => {
@@ -44,13 +45,13 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       let bValue: any = b[sortBy];
       
       if (sortBy === 'leaseEnd') {
-        aValue = new Date(a.leaseEnd);
-        bValue = new Date(b.leaseEnd);
+        aValue = a.leaseEnd ? new Date(a.leaseEnd) : null;
+        bValue = b.leaseEnd ? new Date(b.leaseEnd) : null;
       }
       
       if (sortBy === 'rentAmount') {
-        aValue = a.rentAmount;
-        bValue = b.rentAmount;
+        aValue = a.rentAmount ?? 0;
+        bValue = b.rentAmount ?? 0;
       }
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
@@ -71,6 +72,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       
       return 0;
     });
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -80,8 +82,9 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       leaseStart: '',
       leaseEnd: '',
       rentAmount: '',
-      paymentMethod: '',
-      leaseType: ''
+      paymentMethod: '' as Tenant['paymentMethod'],
+      leaseType: '' as Tenant['leaseType'],
+      leaseRenewal: null, // ✅ reset properly
     });
     setEditingTenant(null);
     setShowForm(false);
@@ -98,7 +101,8 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       leaseEnd: tenant.leaseEnd,
       rentAmount: tenant.rentAmount.toString(),
       paymentMethod: tenant.paymentMethod,
-      leaseType: tenant.leaseType
+      leaseType: tenant.leaseType,
+      leaseRenewal: tenant.leaseRenewal ?? null,
     });
     setShowForm(true);
   };
@@ -113,9 +117,10 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       propertyId: formData.propertyId,
       leaseStart: formData.leaseStart,
       leaseEnd: formData.leaseEnd,
-      rentAmount: parseInt(formData.rentAmount),
+      rentAmount: parseInt(formData.rentAmount, 10), // ✅ radix specified
       paymentMethod: formData.paymentMethod,
-      leaseType: formData.leaseType
+      leaseType: formData.leaseType,
+      leaseRenewal: formData.leaseRenewal,
     };
 
     if (editingTenant) {
@@ -136,6 +141,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
 
   return (
     <div className="p-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Tenant Management</h2>
@@ -170,7 +176,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
         </div>
       </div>
 
-      {/* Search and Sort Controls */}
+      {/* Search and Sort */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <input
@@ -200,6 +206,8 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
           </button>
         </div>
       </div>
+
+      {/* Views */}
       {viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAndSortedTenants.map((tenant) => {
@@ -210,6 +218,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
             
             return (
               <div key={tenant.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                {/* Card header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -232,51 +241,48 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                   )}
                 </div>
 
+                {/* Card details */}
                 <div className="space-y-3 mb-4">
                   <div className="flex items-center text-gray-600">
                     <Mail className="h-4 w-4 mr-2" />
                     <span className="text-sm">{tenant.email}</span>
                   </div>
-                  
                   <div className="flex items-center text-gray-600">
                     <Phone className="h-4 w-4 mr-2" />
                     <span className="text-sm">{tenant.phone}</span>
                   </div>
-
                   <div className="flex items-center text-gray-600">
                     <MapPin className="h-4 w-4 mr-2" />
                     <span className="text-sm">{property?.address}</span>
                   </div>
-
                   <div className="flex items-center text-gray-600">
                     <Calendar className="h-4 w-4 mr-2" />
                     <span className="text-sm">
                       {new Date(tenant.leaseStart).toLocaleDateString()} - {new Date(tenant.leaseEnd).toLocaleDateString()}
                     </span>
                   </div>
-
                   <div className="flex items-center text-gray-600">
                     <FileText className="h-4 w-4 mr-2" />
                     <span className="text-sm font-medium">${tenant.rentAmount}/month</span>
                   </div>
-
                   {tenant.paymentMethod && (
                     <div className="flex items-center text-gray-600">
                       <span className="text-sm">Payment: {tenant.paymentMethod}</span>
                     </div>
                   )}
-
                   {tenant.leaseType && (
                     <div className="flex items-center text-gray-600">
                       <span className="text-sm">Lease: {tenant.leaseType}</span>
                     </div>
                   )}
-
-                  <div className="flex items-center text-gray-600">
-                    <span className="text-sm">Renewal: {new Date(tenant.leaseRenewal).toLocaleDateString()}</span>
-                  </div>
+                  {tenant.leaseRenewal && (
+                    <div className="flex items-center text-gray-600">
+                      <span className="text-sm">Renewal: {new Date(tenant.leaseRenewal).toLocaleDateString()}</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Actions */}
                 <div className="flex space-x-2">
                   <button 
                     onClick={() => handleEdit(tenant)}
@@ -301,33 +307,13 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tenant
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Property
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Lease Period
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rent
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment Method
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Lease Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lease Period</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rent</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -344,9 +330,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                             <User className="h-5 w-5 text-blue-600" />
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{tenant.name}</div>
-                          </div>
+                          <div className="text-sm font-medium text-gray-900">{tenant.name}</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -364,32 +348,26 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {daysUntilExpiry <= 0 ? (
-                          <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
-                            Expired
-                          </span>
+                          <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">Expired</span>
                         ) : daysUntilExpiry <= 60 ? (
-                          <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full">
-                            Expires Soon
-                          </span>
+                          <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full">Expires Soon</span>
                         ) : (
-                          <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">
-                            Active
-                          </span>
+                          <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full">Active</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button 
+                        <button 
                             onClick={() => handleEdit(tenant)}
                             className="text-blue-600 hover:text-blue-900"
                           >
-                            Edit
+                            <Edit className="h-4 w-4 mr-1" />
                           </button>
                           <button 
                             onClick={() => handleDelete(tenant.id)}
                             className="text-red-600 hover:text-red-900"
                           >
-                            Delete
+                            <Trash2 className="h-4 w-4 mr-1" />
                           </button>
                         </div>
                       </td>
@@ -402,7 +380,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
         </div>
       )}
 
-      {/* Add Tenant Form */}
+      {/* Add/Edit Tenant Form */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -410,7 +388,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 {editingTenant ? 'Edit Tenant' : 'Add New Tenant'}
               </h3>
-              
+
               {editingTenant && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
@@ -418,67 +396,54 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                   </p>
                 </div>
               )}
-              
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
                     <input
                       type="text"
-                      required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="John Smith"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                     <input
                       type="email"
-                      required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="john@example.com"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
                     <input
                       type="tel"
-                      required
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="(555) 123-4567"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Property
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Property</label>
                     <select
-                      required
                       value={formData.propertyId}
                       onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="">Select Property</option>
-                      {properties.filter(p => p.status === 'vacant' || (editingTenant && p.id === editingTenant.propertyId)).map((property) => (
+                      <option value="">Select property</option>
+                      {properties.map(property => (
                         <option key={property.id} value={property.id}>
-                          {property.address} - ${property.rent}/month
+                          {property.address}
                         </option>
                       ))}
                     </select>
@@ -487,92 +452,95 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Lease Start Date
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Lease Start</label>
                     <input
                       type="date"
-                      required
                       value={formData.leaseStart}
                       onChange={(e) => setFormData({ ...formData, leaseStart: e.target.value })}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Lease End Date
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Lease End</label>
                     <input
                       type="date"
-                      required
                       value={formData.leaseEnd}
                       onChange={(e) => setFormData({ ...formData, leaseEnd: e.target.value })}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Monthly Rent Amount
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={formData.rentAmount}
-                    onChange={(e) => setFormData({ ...formData, rentAmount: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="1200"
-                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Payment Method
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rent Amount</label>
+                    <input
+                      type="number"
+                      value={formData.rentAmount}
+                      onChange={(e) => setFormData({ ...formData, rentAmount: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
                     <select
                       value={formData.paymentMethod}
                       onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as Tenant['paymentMethod'] })}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="">Select Payment Method</option>
-                      <option value="Zelle">Zelle</option>
-                      <option value="Direct Deposit">Direct Deposit</option>
-                      <option value="Cash">Cash</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Lease Type
-                    </label>
-                    <select
-                      value={formData.leaseType}
-                      onChange={(e) => setFormData({ ...formData, leaseType: e.target.value as Tenant['leaseType'] })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select Lease Type</option>
-                      <option value="Yearly">Yearly</option>
-                      <option value="Monthly">Monthly</option>
+                      <option value="">Select payment method</option>
+                      <option value="cash">Cash</option>
+                      <option value="check">Check</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="credit_card">Credit Card</option>
+                      <option value="online_payment">Online Payment</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    {editingTenant ? 'Update Tenant' : 'Add Tenant'}
-                  </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Lease Type</label>
+                    <select
+                      value={formData.leaseType}
+                      onChange={(e) => setFormData({ ...formData, leaseType: e.target.value as Tenant['leaseType'] })}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select lease type</option>
+                      <option value="fixed">Fixed Term</option>
+                      <option value="month_to_month">Month-to-Month</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Lease Renewal</label>
+                    <input
+                      type="date"
+                      value={formData.leaseRenewal || ''}
+                      onChange={(e) => setFormData({ ...formData, leaseRenewal: e.target.value || null })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {editingTenant ? 'Update Tenant' : 'Add Tenant'}
                   </button>
                 </div>
               </form>
