@@ -317,6 +317,14 @@ class GoogleSheetsService {
         }
       );
       const repairsData = await repairsResponse.json();
+
+      const parseNumber = (value: string | undefined): number | undefined => {
+        if (!value) return undefined; 
+        const cleaned = value.replace(/,/g, '').trim(); // remove commas & spaces
+        if (cleaned === '') return undefined;
+        const parsed = Number(cleaned);
+        return isNaN(parsed) ? undefined : parsed;
+      };
       
       // Convert back to objects
       const properties: Property[] = (propertiesData.values || []).map((row: string[]) => ({
@@ -325,7 +333,7 @@ class GoogleSheetsService {
         city: row[2],
         state: row[3],
         zipcode: row[4],
-        rent: parseInt(row[5]) || 0,
+        rent: parseNumber(row[5]),
         status: row[6] as Property['status']
       })).filter(p => p.id); // Filter out empty rows
       
@@ -337,7 +345,7 @@ class GoogleSheetsService {
         propertyId: row[4],
         leaseStart: row[5],
         leaseEnd: row[6],
-        rentAmount: parseInt(row[7]) || 0,
+        rentAmount: parseNumber(row[7]),
         paymentMethod: row[8] as Tenant['paymentMethod'],
         leaseType: row[9] as Tenant['leaseType'],
         leaseRenewal: row[10] || null
@@ -346,8 +354,8 @@ class GoogleSheetsService {
       const payments: Payment[] = (paymentsData.values || []).map((row: string[]) => ({
         id: row[0],
         propertyId: row[1],
-        amount: parseInt(row[2]) || 0,
-        amountPaid: parseInt(row[3]) || 0,
+        amount: parseNumber(row[2]),        
+        amountPaid: parseNumber(row[3]),   
         date: row[4],
         status: row[5] as Payment['status'],
         method: row[6],

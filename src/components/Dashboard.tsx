@@ -11,14 +11,12 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
-  
-  // Filter out properties with id = 0 first (TEST Property)
-  const filteredProperties = properties.filter(p => p.id !== '0');
 
-  const totalProperties = filteredProperties.length;
-  const occupiedProperties = filteredProperties.filter(p => p.status === 'occupied' && p.id !== '0').length;
+  const totalProperties = properties.length;
+  const occupiedProperties = properties.filter(p => p.status === 'occupied').length;
 
   // Assuming payments and repairRequests have no id field filtering needs
+  const expectedRevenue = properties.filter(p => p.status === 'occupied').reduce((sum, p) => sum + parseInt(p.rent), 0);
   const totalRevenue = payments.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.amountPaid, 0);
   const pendingRepairs = repairRequests.filter(r => r.status !== 'completed').length;
   const urgentRepairs = repairRequests.filter(r => r.priority === 'urgent' && r.status !== 'completed').length;
@@ -31,6 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
     //{ label: 'Total Properties', value: totalProperties, icon: Home, color: 'blue' },
     { label: 'Occupied Units', value: `${occupied_percent.toLocaleString()}%`, icon: Users, color: 'green' },
     { label: 'Pending Repairs', value: pendingRepairs, icon: Wrench, color: 'amber' },
+    { label: 'expectedRevenue', value: `$${expectedRevenue.toLocaleString()}`, icon: DollarSign, color: 'emerald' },
     { label: 'Monthly Revenue', value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'emerald' }
   ];
 

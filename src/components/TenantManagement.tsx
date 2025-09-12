@@ -72,7 +72,10 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       
       return 0;
     });
-
+    
+    console.log('Tenants in component:', tenants);
+    console.log('First tenant:', tenants[0]);
+    
   const resetForm = () => {
     setFormData({
       name: '',
