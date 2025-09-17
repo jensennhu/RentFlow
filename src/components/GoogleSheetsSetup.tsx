@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ExternalLink, CheckCircle, AlertCircle, RefreshCw, FileSpreadsheet, User, LogOut } from 'lucide-react';
-import { googleAuthService } from '../services/googleAuth';
+import { googleAuthService } from '../components/GoogleAuthStatus';
 import { googleSheetsService } from '../services/googleSheets';
 import { GoogleSheetsConfig, GoogleSheet } from '../types';
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Building2, User, Bell, Database, Wifi, WifiOff } from 'lucide-react';
-import { googleAuthService } from '../services/googleAuth';
+import { googleAuthService } from '../components/GoogleAuthStatus';
 
 interface HeaderProps {
   onOpenGoogleSheets: () => void;

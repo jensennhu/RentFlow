@@ -1,26 +1,134 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Property, Tenant, Payment, RepairRequest } from '../types';
-import { properties as initialProperties, tenants as initialTenants, payments as initialPayments, repairRequests as initialRepairRequests } from '../data/mockData';
 import { googleSheetsService } from '../services/googleSheets';
 
+// Optional: load mock data in dev
+import {
+  properties as mockProperties,
+  tenants as mockTenants,
+  payments as mockPayments,
+  repairRequests as mockRepairRequests,
+} from '../data/mockData';
+
+const isDev = process.env.NODE_ENV === 'development';
+
 export const useData = () => {
-  const [properties, setProperties] = useState<Property[]>(initialProperties);
-  const [tenants, setTenants] = useState<Tenant[]>(initialTenants);
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
-  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>(initialRepairRequests);
+  // Empty state by default
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Properties CRUD
-  const addProperty = useCallback((property: Omit<Property, 'id'>) => {
-    const newProperty: Property = {
-      ...property,
-      id: Date.now().toString()
+  // Load mock data only in dev if Sheets is not connected
+  useEffect(() => {
+    if (isDev && !googleSheetsService.isConnected()) {
+      setProperties(mockProperties);
+      setTenants(mockTenants);
+      setPayments(mockPayments);
+      setRepairRequests(mockRepairRequests);
+    }
+  }, []);
+
+  // -----------------------
+  // Payments Generation
+  // -----------------------
+  const generatePaymentsForMonth = useCallback((
+    targetDate: Date = new Date(),
+    propertiesToProcess: Property[] = properties,
+    forceCreate: boolean = false
+  ) => {
+    const targetMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    const rentMonthString = targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    let generatedCount = 0;
+    const newPayments: Payment[] = [];
+
+    propertiesToProcess.forEach(property => {
+      const existingPayment = payments.find(
+        p => p.propertyId === property.id && p.rentMonth === rentMonthString
+      );
+
+      if (!existingPayment && (property.status === 'occupied' || forceCreate)) {
+        const tenant = tenants.find(t => t.propertyId === property.id);
+        const rentAmount = tenant?.rentAmount || property.rent;
+
+        const newPayment: Payment = {
+          id: Date.now().toString() + property.id + Math.random().toString(36).substr(2, 9),
+          propertyId: property.id,
+          amount: rentAmount,
+          amountPaid: 0,
+          date: '',
+          status: 'Not Paid Yet',
+          method: '',
+          rentMonth: rentMonthString,
+        };
+
+        newPayments.push(newPayment);
+        generatedCount++;
+      }
+    });
+
+    if (newPayments.length > 0) {
+      setPayments(prev => [...prev, ...newPayments]);
+    }
+
+    return { generated: generatedCount, month: rentMonthString };
+  }, [properties, tenants, payments]);
+
+  const generateCurrentAndNextMonth = useCallback(() => {
+    const now = new Date();
+    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const currentResults = generatePaymentsForMonth(currentMonth);
+    const nextResults = generatePaymentsForMonth(nextMonth);
+
+    return {
+      current: currentResults,
+      next: nextResults,
+      totalGenerated: currentResults.generated + nextResults.generated,
     };
+  }, [generatePaymentsForMonth]);
+
+  const generatePaymentsForSpecificMonth = useCallback((month: number, year: number, forceCreate: boolean = false) => {
+    const targetDate = new Date(year, month - 1, 1);
+    return generatePaymentsForMonth(targetDate, properties, forceCreate);
+  }, [generatePaymentsForMonth, properties]);
+
+  const generatePaymentsForRange = useCallback((startMonth: number, startYear: number, endMonth: number, endYear: number) => {
+    const results = [];
+    let currentDate = new Date(startYear, startMonth - 1, 1);
+    const endDate = new Date(endYear, endMonth - 1, 1);
+
+    while (currentDate <= endDate) {
+      const result = generatePaymentsForMonth(currentDate, properties, false);
+      results.push(result);
+      currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    }
+
+    return results;
+  }, [generatePaymentsForMonth, properties]);
+
+  const generateUpcomingMonths = useCallback((monthsAhead: number = 6) => {
+    const now = new Date();
+    const results = [];
+
+    for (let i = 0; i < monthsAhead; i++) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const result = generatePaymentsForMonth(targetDate, properties, false);
+      results.push(result);
+    }
+
+    return results;
+  }, [generatePaymentsForMonth, properties]);
+
+  // -----------------------
+  // Properties CRUD
+  // -----------------------
+  const addProperty = useCallback((property: Omit<Property, 'id'>) => {
+    const newProperty: Property = { ...property, id: Date.now().toString() };
     setProperties(prev => [...prev, newProperty]);
-    
-    // Generate payment records for the new property
-    generateUpcomingPayments([newProperty]);
-    
     return newProperty;
   }, []);
 
@@ -30,32 +138,32 @@ export const useData = () => {
 
   const deleteProperty = useCallback((id: string) => {
     setProperties(prev => prev.filter(p => p.id !== id));
-    // Also remove associated tenants and payments
     setTenants(prev => prev.filter(t => t.propertyId !== id));
-    setPayments(prev => prev.filter(p => p.propertyId !== id));
     setPayments(prev => prev.filter(p => p.propertyId !== id));
   }, []);
 
+  // -----------------------
   // Tenants CRUD
+  // -----------------------
   const addTenant = useCallback((tenant: Omit<Tenant, 'id'>) => {
-    
-    // Calculate lease renewal date (last day of month, one month before lease end)
     const leaseEndDate = new Date(tenant.leaseEnd);
     const renewalDate = new Date(leaseEndDate.getFullYear(), leaseEndDate.getMonth() - 1, 0);
-    
+
     const newTenant: Tenant = {
       ...tenant,
       id: Date.now().toString(),
-      leaseRenewal: renewalDate.toISOString().split('T')[0]
+      leaseRenewal: renewalDate.toISOString().split('T')[0],
     };
     setTenants(prev => [...prev, newTenant]);
-    // Update property status to occupied
-    setProperties(prev => prev.map(p => p.id === tenant.propertyId ? { ...p, status: 'occupied' as const } : p));
+
+    setProperties(prev => prev.map(p =>
+      p.id === tenant.propertyId ? { ...p, status: 'occupied' } : p
+    ));
+
     return newTenant;
   }, []);
 
   const updateTenant = useCallback((id: string, updates: Partial<Tenant>) => {
-    // Recalculate lease renewal if lease end date changes
     if (updates.leaseEnd) {
       const leaseEndDate = new Date(updates.leaseEnd);
       const renewalDate = new Date(leaseEndDate.getFullYear(), leaseEndDate.getMonth() - 1, 0);
@@ -67,44 +175,28 @@ export const useData = () => {
   const deleteTenant = useCallback((id: string) => {
     const tenant = tenants.find(t => t.id === id);
     setTenants(prev => prev.filter(t => t.id !== id));
-    // Update property status to vacant
     if (tenant) {
-      setProperties(prev => prev.map(p => p.id === tenant.propertyId ? { ...p, status: 'vacant' as const } : p));
+      setProperties(prev => prev.map(p =>
+        p.id === tenant.propertyId ? { ...p, status: 'vacant' } : p
+      ));
     }
   }, [tenants]);
 
+  // -----------------------
   // Payments CRUD
+  // -----------------------
   const addPayment = useCallback((payment: Omit<Payment, 'id'>) => {
-    const newPayment: Payment = {
-      ...payment,
-      id: Date.now().toString()
-    };
+    const newPayment: Payment = { ...payment, id: Date.now().toString() };
     setPayments(prev => [...prev, newPayment]);
     return newPayment;
   }, []);
 
   const updatePayment = useCallback((id: string, updates: Partial<Payment>) => {
-    // Auto-update status based on amount paid
     if (updates.amountPaid !== undefined && updates.amount !== undefined) {
-      const amountPaid = updates.amountPaid;
-      const totalAmount = updates.amount;
-      
+      const { amountPaid, amount } = updates;
       if (amountPaid === 0) {
         updates.status = 'Not Paid Yet';
-      } else if (amountPaid >= totalAmount) {
-        updates.status = 'Paid';
-      } else {
-        updates.status = 'Partially Paid';
-      }
-    }
-    // Auto-update status based on amount paid
-    if (updates.amountPaid !== undefined && updates.amount !== undefined) {
-      const amountPaid = updates.amountPaid;
-      const totalAmount = updates.amount;
-      
-      if (amountPaid === 0) {
-        updates.status = 'Not Paid Yet';
-      } else if (amountPaid >= totalAmount) {
+      } else if (amountPaid >= amount) {
         updates.status = 'Paid';
       } else {
         updates.status = 'Partially Paid';
@@ -117,22 +209,16 @@ export const useData = () => {
     setPayments(prev => prev.filter(p => p.id !== id));
   }, []);
 
+  // -----------------------
   // Repair Requests CRUD
+  // -----------------------
   const addRepairRequest = useCallback((request: Omit<RepairRequest, 'id'>) => {
-    const newRequest: RepairRequest = {
-      ...request,
-      id: Date.now().toString()
-    };
+    const newRequest: RepairRequest = { ...request, id: Date.now().toString() };
     setRepairRequests(prev => [...prev, newRequest]);
     return newRequest;
   }, []);
 
   const updateRepairRequest = useCallback((id: string, updates: Partial<RepairRequest>) => {
-    // Auto-set date resolved when status changes to completed
-    if (updates.status === 'completed' && !updates.dateResolved) {
-      updates.dateResolved = new Date().toISOString().split('T')[0];
-    }
-    // Auto-set date resolved when status changes to completed
     if (updates.status === 'completed' && !updates.dateResolved) {
       updates.dateResolved = new Date().toISOString().split('T')[0];
     }
@@ -143,194 +229,98 @@ export const useData = () => {
     setRepairRequests(prev => prev.filter(r => r.id !== id));
   }, []);
 
-  // Generate upcoming payment records
-  const generateUpcomingPayments = useCallback((propertiesToProcess: Property[] = properties) => {
-    const now = new Date();
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const rentMonthString = nextMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    
-    propertiesToProcess.forEach(property => {
-      // Check if payment record already exists for next month
-      const existingPayment = payments.find(p => 
-        p.propertyId === property.id && p.rentMonth === rentMonthString
-      );
-      
-      if (!existingPayment && property.status === 'occupied') {
-        const newPayment: Payment = {
-          id: Date.now().toString() + property.id,
-          propertyId: property.id,
-          amount: property.rent,
-          amountPaid: 0,
-          date: '',
-          status: 'Not Paid Yet',
-          method: '',
-          rentMonth: rentMonthString
-        };
-        setPayments(prev => [...prev, newPayment]);
-      }
-    });
-  }, [properties, payments]);
-
-  // Auto-generate upcoming payments on component mount
-  useEffect(() => {
-    generateUpcomingPayments();
-  }, []);
-
-  // Sync to Google Sheets
+  // -----------------------
+  // Google Sheets Sync
+  // -----------------------
   const syncToGoogleSheets = useCallback(async () => {
-    if (!googleSheetsService.isConnected()) {
-      throw new Error('Google Sheets not connected');
-    }
-
+    if (!googleSheetsService.isConnected()) throw new Error('Google Sheets not connected');
     setIsSyncing(true);
+
     try {
       const config = googleSheetsService.getConfig();
-      if (!config?.spreadsheetId) {
-        throw new Error('No spreadsheet selected');
-      }
+      if (!config?.spreadsheetId) throw new Error('No spreadsheet selected');
 
-      // Ensure required sheets exist
       await googleSheetsService.createSheetsIfNeeded(config.spreadsheetId);
-      
-      // Sync all data
+
       await Promise.all([
         googleSheetsService.syncProperties(properties),
         googleSheetsService.syncTenants(tenants),
         googleSheetsService.syncPayments(payments),
-        googleSheetsService.syncRepairRequests(repairRequests)
+        googleSheetsService.syncRepairRequests(repairRequests),
       ]);
 
-      return {
-        success: true,
-        message: 'Data successfully synced to Google Sheets'
-      };
+      return { success: true, message: 'Data synced to Google Sheets' };
     } catch (error) {
       console.error('Sync error:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to sync data to Google Sheets'
-      };
+      return { success: false, message: error instanceof Error ? error.message : 'Failed to sync' };
     } finally {
       setIsSyncing(false);
     }
   }, [properties, tenants, payments, repairRequests]);
 
-  // Pull from Google Sheets
   const pullFromGoogleSheets = useCallback(async () => {
-    if (!googleSheetsService.isConnected()) {
-      throw new Error('Google Sheets not connected');
-    }
-
+    if (!googleSheetsService.isConnected()) throw new Error('Google Sheets not connected');
     setIsSyncing(true);
+
     try {
       const config = googleSheetsService.getConfig();
-      if (!config?.spreadsheetId) {
-        throw new Error('No spreadsheet selected');
-      }
+      if (!config?.spreadsheetId) throw new Error('No spreadsheet selected');
 
-      // Pull all data from Google Sheets
       const data = await googleSheetsService.pullFromSheets();
-      
-      // Update local state with pulled data
+
+      // Always replace state completely (mock data cleared)
       setProperties(data.properties);
       setTenants(data.tenants);
       setPayments(data.payments);
       setRepairRequests(data.repairRequests);
 
-      return {
-        success: true,
-        message: 'Data successfully pulled from Google Sheets'
-      };
+      return { success: true, message: 'Data pulled from Google Sheets' };
     } catch (error) {
       console.error('Pull error:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to pull data from Google Sheets'
-      };
+      return { success: false, message: error instanceof Error ? error.message : 'Failed to pull' };
     } finally {
       setIsSyncing(false);
     }
   }, []);
 
-  // Bidirectional sync
   const syncWithGoogleSheets = useCallback(async () => {
-    if (!googleSheetsService.isConnected()) {
-      throw new Error('Google Sheets not connected');
-    }
-
+    if (!googleSheetsService.isConnected()) throw new Error('Google Sheets not connected');
     setIsSyncing(true);
+
     try {
       const config = googleSheetsService.getConfig();
-      if (!config?.spreadsheetId) {
-        throw new Error('No spreadsheet selected');
-      }
+      if (!config?.spreadsheetId) throw new Error('No spreadsheet selected');
 
-      // Ensure required sheets exist
       await googleSheetsService.createSheetsIfNeeded(config.spreadsheetId);
-      
-      // First pull any changes from Google Sheets
+
       const pulledData = await googleSheetsService.pullFromSheets();
-      
-      // Merge with local data (local data takes precedence for conflicts)
-      const mergedProperties = [...properties];
-      const mergedTenants = [...tenants];
-      const mergedPayments = [...payments];
-      const mergedRepairRequests = [...repairRequests];
-      
-      // Add any new items from Google Sheets that don't exist locally
-      pulledData.properties.forEach(sheetProperty => {
-        if (!mergedProperties.find(p => p.id === sheetProperty.id)) {
-          mergedProperties.push(sheetProperty);
-        }
-      });
-      
-      pulledData.tenants.forEach(sheetTenant => {
-        if (!mergedTenants.find(t => t.id === sheetTenant.id)) {
-          mergedTenants.push(sheetTenant);
-        }
-      });
-      
-      pulledData.payments.forEach(sheetPayment => {
-        if (!mergedPayments.find(p => p.id === sheetPayment.id)) {
-          mergedPayments.push(sheetPayment);
-        }
-      });
-      
-      pulledData.repairRequests.forEach(sheetRequest => {
-        if (!mergedRepairRequests.find(r => r.id === sheetRequest.id)) {
-          mergedRepairRequests.push(sheetRequest);
-        }
-      });
-      
-      // Update local state
-      setProperties(mergedProperties);
-      setTenants(mergedTenants);
-      setPayments(mergedPayments);
-      setRepairRequests(mergedRepairRequests);
-      
-      // Push merged data back to Google Sheets
+
+      // Always replace with pulled data first (no merging with mock)
+      setProperties(pulledData.properties);
+      setTenants(pulledData.tenants);
+      setPayments(pulledData.payments);
+      setRepairRequests(pulledData.repairRequests);
+
+      // Push updated data back
       await Promise.all([
-        googleSheetsService.syncProperties(mergedProperties),
-        googleSheetsService.syncTenants(mergedTenants),
-        googleSheetsService.syncPayments(mergedPayments),
-        googleSheetsService.syncRepairRequests(mergedRepairRequests)
+        googleSheetsService.syncProperties(pulledData.properties),
+        googleSheetsService.syncTenants(pulledData.tenants),
+        googleSheetsService.syncPayments(pulledData.payments),
+        googleSheetsService.syncRepairRequests(pulledData.repairRequests),
       ]);
 
-      return {
-        success: true,
-        message: 'Data successfully synced with Google Sheets'
-      };
+      return { success: true, message: 'Data synced with Google Sheets' };
     } catch (error) {
-      console.error('Bidirectional sync error:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to sync with Google Sheets'
-      };
+      console.error('Sync error:', error);
+      return { success: false, message: error instanceof Error ? error.message : 'Failed to sync' };
     } finally {
       setIsSyncing(false);
     }
-  }, [properties, tenants, payments, repairRequests]);
+  }, []);
 
+  // -----------------------
+  // Return API
+  // -----------------------
   return {
     // Data
     properties,
@@ -338,30 +328,37 @@ export const useData = () => {
     payments,
     repairRequests,
     isSyncing,
-    
+
     // Properties
     addProperty,
     updateProperty,
     deleteProperty,
-    
+
     // Tenants
     addTenant,
     updateTenant,
     deleteTenant,
-    
+
     // Payments
     addPayment,
     updatePayment,
     deletePayment,
-    
+
     // Repair Requests
     addRepairRequest,
     updateRepairRequest,
     deleteRepairRequest,
-    
+
+    // Payment Generators
+    generatePaymentsForMonth,
+    generatePaymentsForSpecificMonth,
+    generatePaymentsForRange,
+    generateCurrentAndNextMonth,
+    generateUpcomingMonths,
+
     // Sync
     syncToGoogleSheets,
     pullFromGoogleSheets,
-    syncWithGoogleSheets
+    syncWithGoogleSheets,
   };
 };
