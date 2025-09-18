@@ -1,6 +1,6 @@
 import { GoogleSheetsConfig, Property, Tenant, Payment } from '../types';
 import type { RepairRequest } from '../types';
-import { googleAuthService } from '../components/GoogleAuthStatus';
+import { googleAuthService } from '../services/googleAuthService';
 
 class GoogleSheetsService {
   getConfig(): GoogleSheetsConfig | null {

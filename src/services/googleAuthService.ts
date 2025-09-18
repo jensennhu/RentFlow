@@ -20,6 +20,11 @@ class GoogleAuthService {
 
   private loadConfig() {
     try {
+      // Add this check for artifacts environment
+      if (typeof localStorage === 'undefined') {
+        console.warn('localStorage not available, using memory-only storage');
+        return;
+      }
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored) {
         const parsedConfig = JSON.parse(stored);
@@ -42,8 +47,13 @@ class GoogleAuthService {
   private saveConfig(config: GoogleSheetsConfig) {
     try {
       this.config = config;
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(config));
-      console.log('Google auth configuration saved');
+      // Add this check for artifacts environment
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(config));
+        console.log('Google auth configuration saved');
+      } else {
+        console.log('Google auth configuration saved to memory only');
+      }
     } catch (error) {
       console.error('Error saving config:', error);
     }
@@ -51,7 +61,10 @@ class GoogleAuthService {
 
   private clearStoredConfig() {
     try {
-      localStorage.removeItem(this.STORAGE_KEY);
+      // Add this check for artifacts environment
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(this.STORAGE_KEY);
+      }
       this.config = null;
       console.log('Cleared stored Google auth configuration');
     } catch (error) {
@@ -148,7 +161,9 @@ class GoogleAuthService {
 
     // Generate state parameter for security
     const state = Math.random().toString(36).substring(2, 15);
-    sessionStorage.setItem('oauth_state', state);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('oauth_state', state);
+    }
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', this.CLIENT_ID);
@@ -169,7 +184,7 @@ class GoogleAuthService {
     }
 
     // Verify state parameter if provided
-    if (state) {
+    if (state && typeof sessionStorage !== 'undefined') {
       const storedState = sessionStorage.getItem('oauth_state');
       if (state !== storedState) {
         throw new Error('Invalid state parameter - possible CSRF attack');

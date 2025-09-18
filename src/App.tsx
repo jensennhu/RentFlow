@@ -10,10 +10,8 @@ import { GoogleSheetsSetup } from './components/GoogleSheetsSetup';
 import { googleSheetsService } from './services/googleSheets';
 import { useData } from './hooks/useData';
 import type { GoogleSheetsConfig, SyncStatus } from './types';
-import { useGoogleAuth } from './hooks/useGoogleAuth';
 
 function App() {
-  const googleAuth = useGoogleAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showGoogleSheetsSetup, setShowGoogleSheetsSetup] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);

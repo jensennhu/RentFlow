@@ -11,7 +11,7 @@ import {
   Clock,
   TrendingDown,
 } from 'lucide-react';
-import { googleAuthService } from '../components/GoogleAuthStatus';
+import { googleAuthService } from '../services/googleAuthService';
 import type { useData } from '../hooks/useData';
 import { PaymentGeneration } from './PaymentGeneration';
 import { calculateStatusForMonth } from './PaymentPortal';
