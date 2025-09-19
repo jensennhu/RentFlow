@@ -25,14 +25,15 @@ export interface Tenant {
 export interface Payment {
   id: string;
   propertyId: string;
-  amount: number;
-  amountPaid: number;
-  date: string;
-  status: 'Paid' | 'Not Paid Yet' | 'Partially Paid';
-  method: string;
+  tenantId: string; // add this
   rentMonth: string;
+  amount: number; // total rent expected
+  amountPaid: number;
+  date: string; // original date
+  paymentDate?: string; // optional alias for PaymentPortal
+  status: 'Not Paid Yet' | 'Partially Paid' | 'Paid';
+  method?: string;
 }
-
 export interface RepairRequest {
   id: string;
   tenantId: string;

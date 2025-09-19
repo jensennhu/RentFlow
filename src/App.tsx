@@ -12,6 +12,7 @@ import { useData } from './hooks/useData';
 import type { GoogleSheetsConfig, SyncStatus } from './types';
 
 function App() {
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showGoogleSheetsSetup, setShowGoogleSheetsSetup] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);

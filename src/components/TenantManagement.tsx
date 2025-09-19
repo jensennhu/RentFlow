@@ -8,8 +8,25 @@ interface TenantManagementProps {
 }
 
 export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) => {
+  
   const { tenants, properties, addTenant, updateTenant, deleteTenant } = dataHook;
   
+  // Lease stats
+  const leaseStats = React.useMemo(() => {
+  const today = new Date();
+  const expiringSoon = tenants.filter((t) => {
+    const leaseEnd = new Date(t.leaseEnd);
+    const daysUntilEnd = Math.ceil((leaseEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntilEnd > 0 && daysUntilEnd <= 60;
+  }).length;
+
+  const expired = tenants.filter((t) => new Date(t.leaseEnd) < today).length;
+
+  const active = tenants.length - expiringSoon - expired;
+
+  return { active, expiringSoon, expired };
+  }, [tenants]);
+
   const [showForm, setShowForm] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
@@ -178,6 +195,23 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
           </button>
         </div>
       </div>
+
+      {/* Lease Status Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h4 className="text-sm font-medium text-gray-500">Active Leases</h4>
+          <p className="text-2xl font-bold text-green-600">{leaseStats.active}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h4 className="text-sm font-medium text-gray-500">Expiring Soon (≤60 days)</h4>
+          <p className="text-2xl font-bold text-yellow-600">{leaseStats.expiringSoon}</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h4 className="text-sm font-medium text-gray-500">Expired Leases</h4>
+          <p className="text-2xl font-bold text-red-600">{leaseStats.expired}</p>
+        </div>
+      </div>
+
 
       {/* Search and Sort */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">

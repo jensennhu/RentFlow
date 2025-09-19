@@ -7,15 +7,9 @@ import {
   AlertTriangle,
   Database,
   RefreshCw,
-  Calendar,
-  Clock,
-  TrendingDown,
 } from 'lucide-react';
 import { googleAuthService } from '../services/googleAuthService';
-import type { useData } from '../hooks/useData';
-import { PaymentGeneration } from './PaymentGeneration';
-import { calculateStatusForMonth } from './PaymentPortal';
-import type { Payment, Tenant, Property } from '../types';
+import { useData } from '../hooks/useData';
 
 interface DashboardProps {
   onSync: () => void;
@@ -34,6 +28,8 @@ interface MissingPaymentsByMonth {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
+
+  // Property stats
   const totalProperties = properties.length;
   const occupiedProperties = properties.filter((p) => p.status === 'occupied').length;
   const vacantProperties = properties.filter((p) => p.status === 'vacant').length;
@@ -42,69 +38,58 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
     .filter((p) => p.status === 'occupied')
     .reduce((sum, p) => sum + p.rent, 0);
 
+  // Repair stats
   const pendingRepairs = repairRequests.filter((r) => r.status !== 'completed').length;
   const urgentRepairs = repairRequests.filter(
     (r) => r.priority === 'urgent' && r.status !== 'completed'
   ).length;
 
+  // Google Sheets connection
   const isConnected = googleAuthService.isConnected();
 
-  // Grouped payment statuses
-  const { totalPaid, totalPartial, totalNotPaid, totalRevenue } = useMemo(() => {
-    const uniqueTenantMonths = Array.from(
-      new Set(payments.map((p) => `${p.propertyId}-${p.rentMonth}`))
-    );
-
-    let paid = 0;
-    let partial = 0;
-    let notPaid = 0;
-    let revenue = 0;
-
-    uniqueTenantMonths.forEach((key) => {
-      const [propertyId, rentMonth] = key.split('-');
-      const tenant = tenants.find((t) => t.propertyId === propertyId);
-      if (!tenant) return;
-
-      const status = calculateStatusForMonth(payments, tenant.id, rentMonth, tenants, properties);
-
-      if (status === 'Paid') paid++;
-      else if (status === 'Partially Paid') partial++;
-      else notPaid++;
-
-      const monthPayments = payments.filter(
-        (p) => p.propertyId === propertyId && p.rentMonth === rentMonth
-      );
-      revenue += monthPayments.reduce((sum, p) => sum + p.amountPaid, 0);
-    });
-
-    return {
-      totalPaid: paid,
-      totalPartial: partial,
-      totalNotPaid: notPaid,
-      totalRevenue: revenue,
-    };
-  }, [payments, tenants, properties]);
+  // Lease Alerts
+  const leaseAlerts = useMemo(() => {
+    const today = new Date();
+    return tenants
+      .map((t) => {
+        const leaseEnd = new Date(t.leaseEnd);
+        const daysUntilEnd = Math.ceil((leaseEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        let status: 'expiring' | 'expired' | null = null;
+        if (daysUntilEnd <= 60 && daysUntilEnd > 0) status = 'expiring';
+        else if (daysUntilEnd <= 0) status = 'expired';
+        if (!status) return null;
+        const property = properties.find((p) => p.id === t.propertyId);
+        return {
+          id: t.id,
+          tenantName: t.name,
+          propertyAddress: property?.address || 'Unknown Property',
+          leaseEnd: t.leaseEnd,
+          status,
+        };
+      })
+      .filter(Boolean) as {
+        id: string;
+        tenantName: string;
+        propertyAddress: string;
+        leaseEnd: string;
+        status: 'expiring' | 'expired';
+      }[];
+  }, [tenants, properties]);
 
   // Missing payments by month
   const missingPaymentsByMonth = useMemo(() => {
-    const monthlyData: Record<string, MissingPaymentsByMonth> = {};
-
+    const monthlyData: Record<string, MissingPaymentsByMonth & { receivedAmount: number }> = {};
     const allMonths = [...new Set(payments.map((p) => p.rentMonth).filter(Boolean))];
 
     allMonths.forEach((month) => {
       const occupiedProps = properties.filter((p) => p.status === 'occupied');
       const monthPayments = payments.filter((p) => p.rentMonth === month);
-
       const propertiesWithPayments = new Set(monthPayments.map((p) => p.propertyId));
       const missingPaymentProperties = occupiedProps.filter((p) => !propertiesWithPayments.has(p.id));
-
-      const receivedPayments = monthPayments.filter(
-        (p) => p.status === 'Paid' || p.status === 'Partially Paid'
-      ).length;
-
+      const receivedPayments = monthPayments.filter((p) => p.status === 'Paid' || p.status === 'Partially Paid').length;
+      const receivedAmount = monthPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
       const expectedPayments = occupiedProps.length;
       const missingCount = Math.max(0, expectedPayments - monthPayments.length);
-
       const missingAmount = missingPaymentProperties.reduce((sum, prop) => {
         const tenant = tenants.find((t) => t.propertyId === prop.id);
         return sum + (tenant?.rentAmount || prop.rent);
@@ -114,70 +99,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
         month,
         expected: expectedPayments,
         received: receivedPayments,
+        receivedAmount,
         missing: missingCount,
         missingAmount,
         occupiedProperties: occupiedProps.map((p) => p.address),
       };
     });
 
-    return Object.values(monthlyData).sort((a, b) => {
-      const dateA = new Date(`${a.month} 1, 2024`);
-      const dateB = new Date(`${b.month} 1, 2024`);
-      return (dateB.getTime() || 0) - (dateA.getTime() || 0);
-    });
+    return Object.values(monthlyData).sort((a, b) => new Date(`${b.month} 1, 2024`).getTime() - new Date(`${a.month} 1, 2024`).getTime());
   }, [properties, tenants, payments]);
 
-  // Current month summary
   const currentMonthData = useMemo(() => {
     const currentDate = new Date();
-    const currentMonth = currentDate.toLocaleDateString('en-US', {
-      month: 'long',
-      year: 'numeric',
-    });
-
-    return (
-      missingPaymentsByMonth.find((data) => data.month === currentMonth) || {
-        month: currentMonth,
-        expected: occupiedProperties,
-        received: 0,
-        missing: occupiedProperties,
-        missingAmount: expectedRevenue,
-        occupiedProperties: properties.filter((p) => p.status === 'occupied').map((p) => p.address),
-      }
-    );
+    const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return missingPaymentsByMonth.find((data) => data.month === currentMonth) || {
+      month: currentMonth,
+      expected: occupiedProperties,
+      received: 0,
+      receivedAmount: 0,
+      missing: occupiedProperties,
+      missingAmount: expectedRevenue,
+      occupiedProperties: properties.filter((p) => p.status === 'occupied').map((p) => p.address),
+    };
   }, [missingPaymentsByMonth, occupiedProperties, expectedRevenue, properties]);
 
-  const totalMissingPayments = missingPaymentsByMonth.reduce((sum, data) => sum + data.missing, 0);
-  const totalMissingAmount = missingPaymentsByMonth.reduce(
-    (sum, data) => sum + data.missingAmount,
-    0
-  );
-
-  // 🔧 Fixed: stats now include icons and colors
+  // Stats cards
   const stats = [
     { name: 'Properties', value: totalProperties, icon: Home, color: 'blue' },
     { name: 'Occupied', value: occupiedProperties, icon: Users, color: 'green' },
     { name: 'Vacant', value: vacantProperties, icon: Users, color: 'gray' },
-    {
-      name: 'Expected Revenue',
-      value: `$${expectedRevenue.toLocaleString()}`,
-      icon: DollarSign,
-      color: 'yellow',
-    },
-    {
-      name: 'Revenue Collected',
-      value: `$${totalRevenue.toLocaleString()}`,
-      icon: DollarSign,
-      color: 'green',
-    },
-    {
-      name: 'Payments',
-      value: `Paid ${totalPaid} | Partial ${totalPartial} | Not Paid ${totalNotPaid}`,
-      icon: DollarSign,
-      color: 'indigo',
-    },
+    { name: 'Expected Revenue', value: `$${expectedRevenue.toLocaleString()}`, icon: DollarSign, color: 'yellow' },
+    { name: 'Revenue Collected', value: `$${currentMonthData.receivedAmount.toLocaleString()}`, icon: DollarSign, color: 'green' },
     { name: 'Pending Repairs', value: pendingRepairs, icon: Wrench, color: 'orange' },
-    { name: 'Urgent Repairs', value: urgentRepairs, icon: AlertTriangle, color: 'red' },
   ];
 
   return (
@@ -188,7 +141,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
           <h2 className="text-2xl font-bold text-gray-900">Landlord Dashboard</h2>
           <p className="text-gray-600">Manage your rental properties and tenants</p>
         </div>
-
         {isConnected && (
           <button
             onClick={onSync}
@@ -211,7 +163,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -232,148 +184,101 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
           );
         })}
       </div>
-      
+
       {/* Recent Activity Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Repair Requests */}
+        {/* Lease Alerts */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Repair Requests</h3>
-            {urgentRepairs > 0 && (
-              <span className="flex items-center text-red-600 text-sm font-medium">
+            <h3 className="text-lg font-semibold text-gray-900">Lease Alerts</h3>
+            {leaseAlerts.length > 0 && (
+              <span className="flex items-center text-sm font-medium text-red-600">
                 <AlertTriangle className="h-4 w-4 mr-1" />
-                {urgentRepairs} Urgent
+                {leaseAlerts.length} Alert{leaseAlerts.length > 1 ? 's' : ''}
               </span>
             )}
           </div>
           <div className="space-y-3">
+            {leaseAlerts.length > 0 ? (
+              leaseAlerts.map((alert) => (
+                <div
+                  key={`lease-${alert.id}`}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{alert.propertyAddress}</p>
+                    <p className="text-sm text-gray-600">
+                      Tenant: {alert.tenantName} • Lease ends {alert.leaseEnd}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      alert.status === "expiring"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {alert.status === "expiring" ? "Expiring Soon" : "Expired"}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-6">No lease alerts</p>
+            )}
+          </div>
+        </div>
+
+        {/* Repair Requests */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Repair Requests</h3>
+            {urgentRepairs > 0 && (
+              <span className="flex items-center text-sm font-medium text-red-600">
+                <AlertTriangle className="h-4 w-4 mr-1" />
+                {urgentRepairs} Urgent Repair{urgentRepairs > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <div className="space-y-3 max-h-75 overflow-y-auto pr-2">
             {repairRequests.length > 0 ? (
-              repairRequests.slice(0, 3).map((repair) => {
-                const property = properties.find(p => p.id === repair.propertyId);
+              repairRequests.map((repair) => {
+                const property = properties.find((p) => p.id === repair.propertyId);
                 return (
-                  <div key={repair.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div
+                    key={`repair-${repair.id}`}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  >
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{repair.title}</p>
                       <p className="text-sm text-gray-600">
-                        {property?.address || 'Unknown Property'} • {repair.category} • {repair.dateSubmitted}
+                        {property?.address || "Unknown Property"} • {repair.category} •{" "}
+                        {repair.dateSubmitted}
                       </p>
                     </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      repair.priority === 'urgent' ? 'bg-red-100 text-red-800' :
-                      repair.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                      repair.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        repair.priority === "urgent"
+                          ? "bg-red-100 text-red-800"
+                          : repair.priority === "high"
+                          ? "bg-orange-100 text-orange-800"
+                          : repair.priority === "medium"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-green-100 text-green-800"
+                      }`}
+                    >
                       {repair.priority}
                     </span>
                   </div>
                 );
               })
             ) : (
-              <div className="text-center py-6 text-gray-500">
-                <Wrench className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                <p>No repair requests</p>
-              </div>
+              <p className="text-gray-500 text-center py-6">No repair requests</p>
             )}
           </div>
-        </div>
 
-        {/* Property Overview */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Property Overview</h3>
-          <div className="space-y-3">
-            {properties.length > 0 ? (
-              properties.slice(0, 5).map((property) => {
-                const tenant = tenants.find(t => t.propertyId === property.id);
-                return (
-                  <div key={property.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{property.address}</p>
-                      <p className="text-sm text-gray-600">
-                        ${property.rent.toLocaleString()}/month
-                        {tenant && <span> • {tenant.name}</span>}
-                      </p>
-                    </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      property.status === 'occupied' ? 'bg-green-100 text-green-800' :
-                      property.status === 'vacant' ? 'bg-gray-100 text-gray-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {property.status}
-                    </span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center py-6 text-gray-500">
-                <Home className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                <p>No properties added yet</p>
-              </div>
-            )}
-          </div>
-          
-          {/* Property Summary */}
-          {properties.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <div className="text-lg font-semibold text-green-600">{occupiedProperties}</div>
-                  <div className="text-xs text-gray-500">Occupied</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-gray-600">{vacantProperties}</div>
-                  <div className="text-xs text-gray-500">Vacant</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-red-600">
-                    {properties.filter(p => p.status === 'maintenance').length}
-                  </div>
-                  <div className="text-xs text-gray-500">Maintenance</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Payments */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Payments</h3>
-        <div className="space-y-3">
-          {payments.length > 0 ? (
-            payments
-              .filter(p => p.status === 'Paid')
-              .slice(0, 5)
-              .map((payment) => {
-                const property = properties.find(p => p.id === payment.propertyId);
-                const tenant = tenants.find(t => t.propertyId === payment.propertyId);
-                return (
-                  <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">
-                        {property?.address || 'Unknown Property'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {tenant?.name || 'Unknown Tenant'} • {payment.rentMonth} • {payment.method}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-green-600">
-                        ${payment.amountPaid.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-gray-500">{payment.date}</p>
-                    </div>
-                  </div>
-                );
-              })
-          ) : (
-            <div className="text-center py-6 text-gray-500">
-              <DollarSign className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-              <p>No payments recorded</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
 };
+        

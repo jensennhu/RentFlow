@@ -379,29 +379,29 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     return { totalCollected, pending, thisMonth };
   }, [payments]);
 
-  // Current Month Settlement Data (for radial chart)
   const currentMonthData = useMemo(() => {
     const now = new Date();
-    const currentMonthStr = now.toLocaleString('default', { month: 'long', year: 'numeric' }); // e.g. "September 2025"
-
-    // find the tenant's property id if a specific tenant is selected
-    const selectedTenantObj = tenants.find(t => t.id === selectedTenant);
-
-    // properties to consider: if tenant selected => that tenant's property; otherwise properties that have tenants (occupied)
-    const tenantProps = selectedTenant === 'all'
-      ? properties.filter(p => tenants.some(t => t.propertyId === p.id))
-      : selectedTenantObj
-        ? properties.filter(p => p.id === selectedTenantObj.propertyId)
+    const currentMonthStr = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+  
+    // Filter occupied properties
+    let relevantProperties = properties.filter(p => p.status === 'occupied');
+  
+    // If a specific tenant is selected, further filter to that tenant's property (if occupied)
+    if (selectedTenant !== 'all') {
+      const tenantObj = tenants.find(t => t.id === selectedTenant);
+      relevantProperties = tenantObj
+        ? relevantProperties.filter(p => p.id === tenantObj.propertyId)
         : [];
-
-    const totalRentDue = tenantProps.reduce((sum, p) => sum + (p.rent || 0), 0);
-
-    // payments for current month and (if tenant filtered) for that tenant's property
+    }
+  
+    const totalRentDue = relevantProperties.reduce((sum, p) => sum + (p.rent || 0), 0);
+  
+    // Payments for current month from relevant properties only
     const paidThisMonth = payments
       .filter(p => p.rentMonth === currentMonthStr)
-      .filter(p => selectedTenant === 'all' ? true : p.propertyId === selectedTenantObj?.propertyId)
+      .filter(p => relevantProperties.some(rp => rp.id === p.propertyId))
       .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-
+  
     return {
       month: currentMonthStr,
       expected: totalRentDue,
@@ -409,6 +409,8 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       missingAmount: Math.max(totalRentDue - paidThisMonth, 0),
     };
   }, [payments, properties, tenants, selectedTenant]);
+  
+
 
   // Auto-update status as user types
   useEffect(() => {
@@ -571,43 +573,6 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
             <Plus className="h-4 w-4 mr-2" />
             Add Payment
           </button>
-        </div>
-      </div>
-
-      {/* Dashboard Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Collected</p>
-              <p className="text-xl font-bold text-green-600">
-                ${dashboardStats.totalCollected.toLocaleString()}
-              </p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-xl font-bold text-yellow-600">
-                ${dashboardStats.pending.toLocaleString()}
-              </p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-600" />
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">This Month</p>
-              <p className="text-xl font-bold text-blue-600">
-                ${dashboardStats.thisMonth.toLocaleString()}
-              </p>
-            </div>
-            <Calendar className="h-8 w-8 text-blue-600" />
-          </div>
         </div>
       </div>
 
