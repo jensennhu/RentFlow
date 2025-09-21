@@ -763,31 +763,39 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {(() => {
-                  // Group payments by rentMonth preserving order from filteredAndSortedPayments
-                  const grouped: Record<string, Payment[]> = {};
-                  const orderedMonths: string[] = [];
-                  filteredAndSortedPayments.forEach(payment => {
-                    const monthKey = payment.rentMonth || 'Unknown';
-                    if (!grouped[monthKey]) {
-                      grouped[monthKey] = [];
-                      orderedMonths.push(monthKey);
-                    }
-                    grouped[monthKey].push(payment);
-                  });
-
-                  // If user sorted by rentMonth we want groups ordered by parsed month (respect sort direction)
-                  if (sortConfig.key === 'rentMonth') {
-                    orderedMonths.sort((a, b) => {
-                      const da = parseMonth(a);
-                      const db = parseMonth(b);
-                      return sortConfig.direction === 'asc' ? da.getTime() - db.getTime() : db.getTime() - da.getTime();
+              {(() => {
+                    // Group payments by rentMonth preserving order from filteredAndSortedPayments
+                    const grouped: Record<string, Payment[]> = {};
+                    const orderedMonths: string[] = [];
+                    filteredAndSortedPayments.forEach(payment => {
+                      const monthKey = payment.rentMonth || 'Unknown';
+                      if (!grouped[monthKey]) {
+                        grouped[monthKey] = [];
+                        orderedMonths.push(monthKey);
+                      }
+                      grouped[monthKey].push(payment);
                     });
-                  }
 
-                  return orderedMonths.map((month) => {
-                    const monthPayments = grouped[month];
-                    const isExpanded = expandedMonths.includes(month);
+                    // If user sorted by rentMonth we want groups ordered by parsed month (respect sort direction)
+                    if (sortConfig.key === 'rentMonth') {
+                      orderedMonths.sort((a, b) => {
+                        const da = parseMonth(a);
+                        const db = parseMonth(b);
+                        return sortConfig.direction === 'asc' ? da.getTime() - db.getTime() : db.getTime() - da.getTime();
+                      });
+                    }
+
+                    return orderedMonths.map((month) => {
+                      let monthPayments = grouped[month]; // get payments for this month
+                      const isExpanded = expandedMonths.includes(month);
+                    
+                      // SORT PAYMENTS INSIDE THE MONTH BY PROPERTY
+                      monthPayments = monthPayments.slice().sort((a, b) => {
+                        const aProp = properties.find(p => p.id === a.propertyId)?.address || '';
+                        const bProp = properties.find(p => p.id === b.propertyId)?.address || '';
+                        return aProp.localeCompare(bProp);
+                      });
+                    
 
                     return (
                       <React.Fragment key={month}>
