@@ -1,20 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import {
   Home,
   Users,
   DollarSign,
   Wrench,
-  AlertTriangle,
-  Database,
-  RefreshCw,
-  GitCompare,
-  Plus,
-  Edit,
-  Trash2,
-  Check,
-  X,
-  Download,
-  AlertCircle
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { useData } from '../hooks/useData';
@@ -45,14 +35,12 @@ interface DataChange {
   newValue?: any;
 }
 
-
 export const supabaseService = {
   async fetchAllData() {
     const { data: properties } = await supabase.from('properties').select('*');
     const { data: tenants } = await supabase.from('tenants').select('*');
     const { data: payments } = await supabase.from('payments').select('*');
     const { data: repairRequests } = await supabase.from('repair_requests').select('*');
-
     return { properties, tenants, payments, repairRequests };
   },
 
@@ -63,14 +51,10 @@ export const supabaseService = {
           await supabase.from(change.table).insert(change.new);
           break;
         case 'update':
-          await supabase.from(change.table)
-            .update(change.new)
-            .eq('id', change.id);
+          await supabase.from(change.table).update(change.new).eq('id', change.id);
           break;
         case 'delete':
-          await supabase.from(change.table)
-            .delete()
-            .eq('id', change.id);
+          await supabase.from(change.table).delete().eq('id', change.id);
           break;
       }
     }
@@ -78,40 +62,40 @@ export const supabaseService = {
   }
 };
 
-
 export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
 
+  // Filter only submitted or in-progress repairs
+  const activeRepairs = useMemo(
+    () => repairRequests.filter(r => r.status === 'pending' || r.status === 'in-progress'),
+    [repairRequests]
+  );
+
+  const urgentRepairs = useMemo(
+    () => activeRepairs.filter(r => r.priority === 'urgent').length,
+    [activeRepairs]
+  );
+
   // Property stats
   const totalProperties = properties.length;
-  const occupiedProperties = properties.filter((p) => p.status === 'occupied').length;
-  const vacantProperties = properties.filter((p) => p.status === 'vacant').length;
-
+  const occupiedProperties = properties.filter(p => p.status === 'occupied').length;
+  const vacantProperties = properties.filter(p => p.status === 'vacant').length;
   const expectedRevenue = properties
-    .filter((p) => p.status === 'occupied')
+    .filter(p => p.status === 'occupied')
     .reduce((sum, p) => sum + p.rent, 0);
-
-  // Repair stats
-  const pendingRepairs = repairRequests.filter((r) => r.status !== 'completed').length;
-  const urgentRepairs = repairRequests.filter(
-    (r) => r.priority === 'urgent' && r.status !== 'completed'
-  ).length;
-
-  // connection
-  const isConnected = true;
 
   // Lease Alerts
   const leaseAlerts = useMemo(() => {
     const today = new Date();
     return tenants
-      .map((t) => {
+      .map(t => {
         const leaseEnd = new Date(t.leaseEnd);
         const daysUntilEnd = Math.ceil((leaseEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         let status: 'expiring' | 'expired' | null = null;
         if (daysUntilEnd <= 60 && daysUntilEnd > 0) status = 'expiring';
         else if (daysUntilEnd <= 0) status = 'expired';
         if (!status) return null;
-        const property = properties.find((p) => p.id === t.propertyId);
+        const property = properties.find(p => p.id === t.propertyId);
         return {
           id: t.id,
           tenantName: t.name,
@@ -129,61 +113,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
       }[];
   }, [tenants, properties]);
 
-  // Missing payments by month
-  const missingPaymentsByMonth = useMemo(() => {
-    const monthlyData: Record<string, MissingPaymentsByMonth & { receivedAmount: number }> = {};
-    const allMonths = [...new Set(payments.map((p) => p.rentMonth).filter(Boolean))];
-
-    allMonths.forEach((month) => {
-      const occupiedProps = properties.filter((p) => p.status === 'occupied');
-      const monthPayments = payments.filter((p) => p.rentMonth === month);
-      const propertiesWithPayments = new Set(monthPayments.map((p) => p.propertyId));
-      const missingPaymentProperties = occupiedProps.filter((p) => !propertiesWithPayments.has(p.id));
-      const receivedPayments = monthPayments.filter((p) => p.status === 'Paid' || p.status === 'Partially Paid').length;
-      const receivedAmount = monthPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-      const expectedPayments = occupiedProps.length;
-      const missingCount = Math.max(0, expectedPayments - monthPayments.length);
-      const missingAmount = missingPaymentProperties.reduce((sum, prop) => {
-        const tenant = tenants.find((t) => t.propertyId === prop.id);
-        return sum + (tenant?.rentAmount || prop.rent);
-      }, 0);
-
-      monthlyData[month] = {
-        month,
-        expected: expectedPayments,
-        received: receivedPayments,
-        receivedAmount,
-        missing: missingCount,
-        missingAmount,
-        occupiedProperties: occupiedProps.map((p) => p.address),
-      };
-    });
-
-    return Object.values(monthlyData).sort((a, b) => new Date(`${b.month} 1, 2024`).getTime() - new Date(`${a.month} 1, 2024`).getTime());
-  }, [properties, tenants, payments]);
-
-  const currentMonthData = useMemo(() => {
-    const currentDate = new Date();
-    const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    return missingPaymentsByMonth.find((data) => data.month === currentMonth) || {
-      month: currentMonth,
-      expected: occupiedProperties,
-      received: 0,
-      receivedAmount: 0,
-      missing: occupiedProperties,
-      missingAmount: expectedRevenue,
-      occupiedProperties: properties.filter((p) => p.status === 'occupied').map((p) => p.address),
-    };
-  }, [missingPaymentsByMonth, occupiedProperties, expectedRevenue, properties]);
-
   // Stats cards
   const stats = [
     { name: 'Properties', value: totalProperties, icon: Home, color: 'blue' },
     { name: 'Occupied', value: occupiedProperties, icon: Users, color: 'green' },
     { name: 'Vacant', value: vacantProperties, icon: Users, color: 'gray' },
     { name: 'Expected Revenue', value: `${expectedRevenue.toLocaleString()}`, icon: DollarSign, color: 'yellow' },
-    { name: 'Revenue Collected', value: `${currentMonthData.receivedAmount.toLocaleString()}`, icon: DollarSign, color: 'green' },
-    { name: 'Pending Repairs', value: pendingRepairs, icon: Wrench, color: 'orange' },
+    { name: 'Pending Repairs', value: activeRepairs.length, icon: Wrench, color: 'orange' },
   ];
 
   return (
@@ -191,7 +127,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Landlord Dashboard</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
           <p className="text-gray-600">Manage your rental properties, tenants, payments, and repairs</p>
         </div>
       </div>
@@ -234,7 +170,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
           </div>
           <div className="space-y-3">
             {leaseAlerts.length > 0 ? (
-              leaseAlerts.map((alert) => (
+              leaseAlerts.map(alert => (
                 <div
                   key={`lease-${alert.id}`}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -274,9 +210,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
             )}
           </div>
           <div className="space-y-3 max-h-75 overflow-y-auto pr-2">
-            {repairRequests.length > 0 ? (
-              repairRequests.map((repair) => {
-                const property = properties.find((p) => p.id === repair.propertyId);
+            {activeRepairs.length > 0 ? (
+              activeRepairs.map(repair => {
+                const property = properties.find(p => p.id === repair.propertyId);
                 return (
                   <div
                     key={`repair-${repair.id}`}
@@ -285,8 +221,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">{repair.title}</p>
                       <p className="text-sm text-gray-600">
-                        {property?.address || "Unknown Property"} • {repair.category} •{" "}
-                        {repair.dateSubmitted}
+                        {property?.address || "Unknown Property"} • {repair.category} • {repair.dateSubmitted}
                       </p>
                     </div>
                     <span

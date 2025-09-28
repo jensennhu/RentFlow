@@ -8,10 +8,14 @@ import { TenantManagement } from './components/TenantManagement';
 import { PaymentPortal } from './components/PaymentPortal';
 import { RepairManagement } from './components/RepairManagement';
 import { SupabaseSetup } from './components/SupabaseSetup';
+import { AuthPage } from './components/AuthPage';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useData } from './hooks/useData';
 import type { SyncStatus } from './types';
 
-function App() {
+// Main App Component (wrapped with auth)
+const AppContent: React.FC = () => {
+  const { user, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showSupabaseSetup, setShowSupabaseSetup] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -46,8 +50,16 @@ function App() {
   };
 
   const handleSupabaseSetup = () => {
-    // This could be used to show setup instructions or configuration
     console.log('Supabase setup requested');
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setActiveTab('dashboard');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const renderContent = () => {
@@ -67,9 +79,31 @@ function App() {
     }
   };
 
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex items-center space-x-4">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-gray-600">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth page if user is not authenticated
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  // Show main app if user is authenticated
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onOpenSupabaseSetup={() => setShowSupabaseSetup(true)} />
+      <Header 
+        onOpenSupabaseSetup={() => setShowSupabaseSetup(true)} 
+        user={user}
+        onSignOut={handleSignOut}
+      />
       
       <div className="flex h-[calc(100vh-64px)]">
         <div className="w-64 flex-shrink-0">
@@ -101,6 +135,15 @@ function App() {
       />
     </div>
   );
-}
+};
+
+// Root App Component with Auth Provider
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+};
 
 export default App;
