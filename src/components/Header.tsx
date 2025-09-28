@@ -17,9 +17,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseSetup }) => {
             <Database className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Landlord Dashboard</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Chan Rental Management Dashboard</h1>
             <p className="text-sm text-gray-500">
-              Property Management System
+              Properties of Chan Family
               {isSupabaseEnabled && (
                 <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                   Supabase Enabled
