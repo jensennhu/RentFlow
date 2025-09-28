@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
@@ -6,27 +7,30 @@ import { PropertyManagement } from './components/PropertyManagement';
 import { TenantManagement } from './components/TenantManagement';
 import { PaymentPortal } from './components/PaymentPortal';
 import { RepairManagement } from './components/RepairManagement';
-import { GoogleSheetsSetup } from './components/GoogleSheetsSetup';
-import { googleSheetsService } from './services/googleSheets';
+import { SupabaseSetup } from './components/SupabaseSetup';
 import { useData } from './hooks/useData';
-import type { GoogleSheetsConfig, SyncStatus } from './types';
+import type { SyncStatus } from './types';
 
 function App() {
-
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [showGoogleSheetsSetup, setShowGoogleSheetsSetup] = useState(false);
+  const [showSupabaseSetup, setShowSupabaseSetup] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
   const dataHook = useData();
-
-  const handleGoogleSheetsConnect = (config: GoogleSheetsConfig) => {
-    // This is now handled automatically by the hook
-    console.log('Google Sheets connected:', config);
-  };
+  const isSupabaseEnabled = import.meta.env.VITE_USE_SUPABASE === 'true';
 
   const handleSync = async () => {
+    if (!isSupabaseEnabled) {
+      setSyncStatus({
+        lastSync: new Date().toISOString(),
+        status: 'error',
+        message: 'Supabase is not configured. Enable VITE_USE_SUPABASE and set up your Supabase credentials.'
+      });
+      return;
+    }
+
     try {
-      const result = await dataHook.syncWithGoogleSheets();
+      const result = await dataHook.syncWithSupabase();
       setSyncStatus({
         lastSync: new Date().toISOString(),
         status: result.success ? 'success' : 'error',
@@ -36,9 +40,14 @@ function App() {
       setSyncStatus({
         lastSync: new Date().toISOString(),
         status: 'error',
-        message: error instanceof Error ? error.message : 'Failed to sync data with Google Sheets'
+        message: error instanceof Error ? error.message : 'Failed to sync data with Supabase'
       });
     }
+  };
+
+  const handleSupabaseSetup = () => {
+    // This could be used to show setup instructions or configuration
+    console.log('Supabase setup requested');
   };
 
   const renderContent = () => {
@@ -60,7 +69,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header onOpenGoogleSheets={() => setShowGoogleSheetsSetup(true)} />
+      <Header onOpenSupabaseSetup={() => setShowSupabaseSetup(true)} />
       
       <div className="flex h-[calc(100vh-64px)]">
         <div className="w-64 flex-shrink-0">
@@ -85,10 +94,10 @@ function App() {
         </main>
       </div>
       
-      <GoogleSheetsSetup
-        isOpen={showGoogleSheetsSetup}
-        onClose={() => setShowGoogleSheetsSetup(false)}
-        onConnect={handleGoogleSheetsConnect}
+      <SupabaseSetup
+        isOpen={showSupabaseSetup}
+        onClose={() => setShowSupabaseSetup(false)}
+        onSetup={handleSupabaseSetup}
       />
     </div>
   );

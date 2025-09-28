@@ -73,3 +73,13 @@ export interface SyncResult {
   success: boolean;
   message: string;
 }
+export interface DataChange {
+  id: string;
+  type: 'add' | 'update' | 'delete';
+  table: 'properties' | 'tenants' | 'payments' | 'repairRequests';
+  current?: any;
+  new?: any;
+  field?: string;
+  oldValue?: any;
+  newValue?: any;
+}

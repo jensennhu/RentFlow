@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Home,
   Users,
@@ -7,8 +7,16 @@ import {
   AlertTriangle,
   Database,
   RefreshCw,
+  GitCompare,
+  Plus,
+  Edit,
+  Trash2,
+  Check,
+  X,
+  Download,
+  AlertCircle
 } from 'lucide-react';
-import { googleAuthService } from '../services/googleAuthService';
+import { supabase } from '../services/supabaseClient';
 import { useData } from '../hooks/useData';
 
 interface DashboardProps {
@@ -25,6 +33,51 @@ interface MissingPaymentsByMonth {
   missingAmount: number;
   occupiedProperties: string[];
 }
+
+interface DataChange {
+  id: string;
+  type: 'add' | 'update' | 'delete';
+  table: 'properties' | 'tenants' | 'payments' | 'repairRequests';
+  current?: any;
+  new?: any;
+  field?: string;
+  oldValue?: any;
+  newValue?: any;
+}
+
+
+export const supabaseService = {
+  async fetchAllData() {
+    const { data: properties } = await supabase.from('properties').select('*');
+    const { data: tenants } = await supabase.from('tenants').select('*');
+    const { data: payments } = await supabase.from('payments').select('*');
+    const { data: repairRequests } = await supabase.from('repair_requests').select('*');
+
+    return { properties, tenants, payments, repairRequests };
+  },
+
+  async updateData(changes: DataChange[]) {
+    for (const change of changes) {
+      switch (change.type) {
+        case 'add':
+          await supabase.from(change.table).insert(change.new);
+          break;
+        case 'update':
+          await supabase.from(change.table)
+            .update(change.new)
+            .eq('id', change.id);
+          break;
+        case 'delete':
+          await supabase.from(change.table)
+            .delete()
+            .eq('id', change.id);
+          break;
+      }
+    }
+    return { success: true };
+  }
+};
+
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
@@ -44,8 +97,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
     (r) => r.priority === 'urgent' && r.status !== 'completed'
   ).length;
 
-  // Google Sheets connection
-  const isConnected = googleAuthService.isConnected();
+  // connection
+  const isConnected = true;
 
   // Lease Alerts
   const leaseAlerts = useMemo(() => {
@@ -128,8 +181,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
     { name: 'Properties', value: totalProperties, icon: Home, color: 'blue' },
     { name: 'Occupied', value: occupiedProperties, icon: Users, color: 'green' },
     { name: 'Vacant', value: vacantProperties, icon: Users, color: 'gray' },
-    { name: 'Expected Revenue', value: `$${expectedRevenue.toLocaleString()}`, icon: DollarSign, color: 'yellow' },
-    { name: 'Revenue Collected', value: `$${currentMonthData.receivedAmount.toLocaleString()}`, icon: DollarSign, color: 'green' },
+    { name: 'Expected Revenue', value: `${expectedRevenue.toLocaleString()}`, icon: DollarSign, color: 'yellow' },
+    { name: 'Revenue Collected', value: `${currentMonthData.receivedAmount.toLocaleString()}`, icon: DollarSign, color: 'green' },
     { name: 'Pending Repairs', value: pendingRepairs, icon: Wrench, color: 'orange' },
   ];
 
@@ -141,25 +194,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
           <h2 className="text-2xl font-bold text-gray-900">Landlord Dashboard</h2>
           <p className="text-gray-600">Manage your rental properties and tenants</p>
         </div>
-        {isConnected && (
-          <button
-            onClick={onSync}
-            disabled={isSyncing}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {isSyncing ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>Syncing with Sheets...</span>
-              </>
-            ) : (
-              <>
-                <Database className="h-4 w-4" />
-                <span>Sync with Sheets</span>
-              </>
-            )}
-          </button>
-        )}
       </div>
 
       {/* Stats Grid */}
@@ -275,10 +309,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
               <p className="text-gray-500 text-center py-6">No repair requests</p>
             )}
           </div>
-
         </div>
       </div>
     </div>
   );
 };
-        

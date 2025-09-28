@@ -1,6 +1,7 @@
+// src/hooks/useData.ts
 import { useState, useCallback, useEffect } from 'react';
 import { Property, Tenant, Payment, RepairRequest } from '../types';
-import { googleSheetsService } from '../services/googleSheets';
+import { supabaseService } from '../services/supabaseService';
 
 // Mock data for dev only
 import {
@@ -11,7 +12,7 @@ import {
 } from '../data/mockData';
 
 const isDev = import.meta.env.MODE === 'development';
-
+const useSupabase = import.meta.env.VITE_USE_SUPABASE === 'true';
 
 export const useData = () => {
   // -----------------------
@@ -22,15 +23,57 @@ export const useData = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [repairRequests, setRepairRequests] = useState<RepairRequest[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load mock data if Sheets not connected (dev only)
+  // -----------------------
+  // Load initial data
+  // -----------------------
   useEffect(() => {
-    if (isDev && !googleSheetsService.isConnected()) {
-      setProperties(mockProperties);
-      setTenants(mockTenants);
-      setPayments(mockPayments);
-      setRepairRequests(mockRepairRequests);
-    }
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      
+      if (useSupabase) {
+        try {
+          // Test connection first
+          const isConnected = await supabaseService.testConnection();
+          if (!isConnected) {
+            console.warn('Supabase connection failed, using mock data');
+            if (isDev) {
+              setProperties(mockProperties);
+              setTenants(mockTenants);
+              setPayments(mockPayments);
+              setRepairRequests(mockRepairRequests);
+            }
+          } else {
+            // Load data from Supabase
+            const data = await supabaseService.syncAllData();
+            setProperties(data.properties);
+            setTenants(data.tenants);
+            setPayments(data.payments);
+            setRepairRequests(data.repairRequests);
+          }
+        } catch (error) {
+          console.error('Error loading data from Supabase:', error);
+          if (isDev) {
+            console.log('Falling back to mock data');
+            setProperties(mockProperties);
+            setTenants(mockTenants);
+            setPayments(mockPayments);
+            setRepairRequests(mockRepairRequests);
+          }
+        }
+      } else if (isDev) {
+        // Use mock data in development when Supabase is disabled
+        setProperties(mockProperties);
+        setTenants(mockTenants);
+        setPayments(mockPayments);
+        setRepairRequests(mockRepairRequests);
+      }
+      
+      setIsLoading(false);
+    };
+
+    loadInitialData();
   }, []);
 
   // -----------------------
@@ -43,7 +86,7 @@ export const useData = () => {
   // Payments Generation
   // -----------------------
   const generatePaymentsForMonth = useCallback(
-    (
+    async (
       targetDate: Date = new Date(),
       propertiesToProcess: Property[] = properties,
       forceCreate: boolean = false
@@ -55,7 +98,7 @@ export const useData = () => {
       let generatedCount = 0;
       const newPayments: Payment[] = [];
 
-      propertiesToProcess.forEach((property) => {
+      for (const property of propertiesToProcess) {
         const existingPayment = payments.find(
           (p) => p.propertyId === property.id && p.rentMonth === rentMonthString
         );
@@ -64,12 +107,9 @@ export const useData = () => {
           const tenant = tenants.find((t) => t.propertyId === property.id);
           const rentAmount = tenant?.rentAmount ?? property.rent;
 
-          const newPayment: Payment = {
-            id:
-              Date.now().toString() +
-              property.id +
-              Math.random().toString(36).slice(2, 9),
+          const newPayment: Omit<Payment, 'id'> = {
             propertyId: property.id,
+            tenantId: tenant?.id || '',
             amount: rentAmount,
             amountPaid: 0,
             date: '',
@@ -78,10 +118,25 @@ export const useData = () => {
             rentMonth: rentMonthString,
           };
 
-          newPayments.push(newPayment);
-          generatedCount++;
+          if (useSupabase) {
+            try {
+              const createdPayment = await supabaseService.createPayment(newPayment);
+              newPayments.push(createdPayment);
+              generatedCount++;
+            } catch (error) {
+              console.error('Error creating payment in Supabase:', error);
+            }
+          } else {
+            // Local-only mode
+            const localPayment: Payment = {
+              ...newPayment,
+              id: Date.now().toString() + property.id + Math.random().toString(36).slice(2, 9),
+            };
+            newPayments.push(localPayment);
+            generatedCount++;
+          }
         }
-      });
+      }
 
       if (newPayments.length > 0) {
         setPayments((prev) => [...prev, ...newPayments]);
@@ -89,15 +144,15 @@ export const useData = () => {
 
       return { generated: generatedCount, month: rentMonthString };
     },
-    [properties, tenants, payments]
+    [properties, tenants, payments, useSupabase]
   );
 
-  const generateCurrentAndNextMonth = useCallback(() => {
+  const generateCurrentAndNextMonth = useCallback(async () => {
     const now = new Date();
-    const currentResults = generatePaymentsForMonth(
+    const currentResults = await generatePaymentsForMonth(
       new Date(now.getFullYear(), now.getMonth(), 1)
     );
-    const nextResults = generatePaymentsForMonth(
+    const nextResults = await generatePaymentsForMonth(
       new Date(now.getFullYear(), now.getMonth() + 1, 1)
     );
 
@@ -109,21 +164,21 @@ export const useData = () => {
   }, [generatePaymentsForMonth]);
 
   const generatePaymentsForSpecificMonth = useCallback(
-    (month: number, year: number, forceCreate: boolean = false) => {
+    async (month: number, year: number, forceCreate: boolean = false) => {
       const targetDate = new Date(year, month - 1, 1);
-      return generatePaymentsForMonth(targetDate, properties, forceCreate);
+      return await generatePaymentsForMonth(targetDate, properties, forceCreate);
     },
     [generatePaymentsForMonth, properties]
   );
 
   const generatePaymentsForRange = useCallback(
-    (startMonth: number, startYear: number, endMonth: number, endYear: number) => {
-      const results: ReturnType<typeof generatePaymentsForMonth>[] = [];
+    async (startMonth: number, startYear: number, endMonth: number, endYear: number) => {
+      const results: Awaited<ReturnType<typeof generatePaymentsForMonth>>[] = [];
       let currentDate = new Date(startYear, startMonth - 1, 1);
       const endDate = new Date(endYear, endMonth - 1, 1);
 
       while (currentDate <= endDate) {
-        results.push(generatePaymentsForMonth(currentDate, properties, false));
+        results.push(await generatePaymentsForMonth(currentDate, properties, false));
         currentDate = new Date(
           currentDate.getFullYear(),
           currentDate.getMonth() + 1,
@@ -137,13 +192,13 @@ export const useData = () => {
   );
 
   const generateUpcomingMonths = useCallback(
-    (monthsAhead: number = 6) => {
+    async (monthsAhead: number = 6) => {
       const now = new Date();
-      const results: ReturnType<typeof generatePaymentsForMonth>[] = [];
+      const results: Awaited<ReturnType<typeof generatePaymentsForMonth>>[] = [];
 
       for (let i = 0; i < monthsAhead; i++) {
         const targetDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
-        results.push(generatePaymentsForMonth(targetDate, properties, false));
+        results.push(await generatePaymentsForMonth(targetDate, properties, false));
       }
 
       return results;
@@ -154,28 +209,67 @@ export const useData = () => {
   // -----------------------
   // Properties CRUD
   // -----------------------
-  const addProperty = useCallback((property: Omit<Property, 'id'>) => {
-    const newProperty: Property = { ...property, id: Date.now().toString() };
-    setProperties((prev) => [...prev, newProperty]);
-    return newProperty;
-  }, []);
+  const addProperty = useCallback(async (property: Omit<Property, 'id'>) => {
+    if (useSupabase) {
+      try {
+        const newProperty = await supabaseService.createProperty(property);
+        setProperties((prev) => [...prev, newProperty]);
+        return newProperty;
+      } catch (error) {
+        console.error('Error creating property:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      const newProperty: Property = { ...property, id: Date.now().toString() };
+      setProperties((prev) => [...prev, newProperty]);
+      return newProperty;
+    }
+  }, [useSupabase]);
 
-  const updateProperty = useCallback((id: string, updates: Partial<Property>) => {
-    setProperties((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-    );
-  }, []);
+  const updateProperty = useCallback(async (id: string, updates: Partial<Property>) => {
+    if (useSupabase) {
+      try {
+        const updatedProperty = await supabaseService.updateProperty(id, updates);
+        setProperties((prev) =>
+          prev.map((p) => (p.id === id ? updatedProperty : p))
+        );
+        return updatedProperty;
+      } catch (error) {
+        console.error('Error updating property:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      setProperties((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+      );
+    }
+  }, [useSupabase]);
 
-  const deleteProperty = useCallback((id: string) => {
-    setProperties((prev) => prev.filter((p) => p.id !== id));
-    setTenants((prev) => prev.filter((t) => t.propertyId !== id));
-    setPayments((prev) => prev.filter((p) => p.propertyId !== id));
-  }, []);
+  const deleteProperty = useCallback(async (id: string) => {
+    if (useSupabase) {
+      try {
+        await supabaseService.deleteProperty(id);
+        setProperties((prev) => prev.filter((p) => p.id !== id));
+        setTenants((prev) => prev.filter((t) => t.propertyId !== id));
+        setPayments((prev) => prev.filter((p) => p.propertyId !== id));
+      } catch (error) {
+        console.error('Error deleting property:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      setProperties((prev) => prev.filter((p) => p.id !== id));
+      setTenants((prev) => prev.filter((t) => t.propertyId !== id));
+      setPayments((prev) => prev.filter((p) => p.propertyId !== id));
+    }
+  }, [useSupabase]);
 
   // -----------------------
   // Tenants CRUD
   // -----------------------
-  const addTenant = useCallback((tenant: Omit<Tenant, 'id' | 'leaseRenewal'>) => {
+  const addTenant = useCallback(async (tenant: Omit<Tenant, 'id' | 'leaseRenewal'>) => {
     const leaseEndDate = new Date(tenant.leaseEnd);
     const renewalDate = new Date(
       leaseEndDate.getFullYear(),
@@ -183,25 +277,46 @@ export const useData = () => {
       1
     );
 
-    const newTenant: Tenant = {
+    const tenantWithRenewal: Omit<Tenant, 'id'> = {
       ...tenant,
-      id: Date.now().toString(),
       leaseRenewal: renewalDate.toISOString().split('T')[0],
     };
 
-    setTenants((prev) => [...prev, newTenant]);
+    if (useSupabase) {
+      try {
+        const newTenant = await supabaseService.createTenant(tenantWithRenewal);
+        setTenants((prev) => [...prev, newTenant]);
 
-    // Mark property occupied
-    setProperties((prev) =>
-      prev.map((p) =>
-        p.id === tenant.propertyId ? { ...p, status: 'occupied' } : p
-      )
-    );
+        // Mark property occupied
+        await updateProperty(tenant.propertyId, { status: 'occupied' });
+        
+        return newTenant;
+      } catch (error) {
+        console.error('Error creating tenant:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      const newTenant: Tenant = {
+        ...tenantWithRenewal,
+        id: Date.now().toString(),
+      };
 
-    return newTenant;
-  }, []);
+      setTenants((prev) => [...prev, newTenant]);
 
-  const updateTenant = useCallback((id: string, updates: Partial<Tenant>) => {
+      // Mark property occupied
+      setProperties((prev) =>
+        prev.map((p) =>
+          p.id === tenant.propertyId ? { ...p, status: 'occupied' } : p
+        )
+      );
+
+      return newTenant;
+    }
+  }, [useSupabase, updateProperty]);
+
+  const updateTenant = useCallback(async (id: string, updates: Partial<Tenant>) => {
+    let updatesWithRenewal = { ...updates };
     if (updates.leaseEnd) {
       const leaseEndDate = new Date(updates.leaseEnd);
       const renewalDate = new Date(
@@ -209,178 +324,225 @@ export const useData = () => {
         leaseEndDate.getMonth() - 1,
         1
       );
-      updates.leaseRenewal = renewalDate.toISOString().split('T')[0];
+      updatesWithRenewal.leaseRenewal = renewalDate.toISOString().split('T')[0];
     }
-    setTenants((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
-  }, []);
+
+    if (useSupabase) {
+      try {
+        const updatedTenant = await supabaseService.updateTenant(id, updatesWithRenewal);
+        setTenants((prev) => prev.map((t) => (t.id === id ? updatedTenant : t)));
+        return updatedTenant;
+      } catch (error) {
+        console.error('Error updating tenant:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      setTenants((prev) => prev.map((t) => (t.id === id ? { ...t, ...updatesWithRenewal } : t)));
+    }
+  }, [useSupabase]);
 
   const deleteTenant = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const tenant = tenants.find((t) => t.id === id);
-      setTenants((prev) => prev.filter((t) => t.id !== id));
+      
+      if (useSupabase) {
+        try {
+          await supabaseService.deleteTenant(id);
+          setTenants((prev) => prev.filter((t) => t.id !== id));
 
-      if (tenant) {
-        setProperties((prev) =>
-          prev.map((p) =>
-            p.id === tenant.propertyId ? { ...p, status: 'vacant' } : p
-          )
-        );
+          if (tenant) {
+            await updateProperty(tenant.propertyId, { status: 'vacant' });
+          }
+        } catch (error) {
+          console.error('Error deleting tenant:', error);
+          throw error;
+        }
+      } else {
+        // Local-only mode
+        setTenants((prev) => prev.filter((t) => t.id !== id));
+
+        if (tenant) {
+          setProperties((prev) =>
+            prev.map((p) =>
+              p.id === tenant.propertyId ? { ...p, status: 'vacant' } : p
+            )
+          );
+        }
       }
     },
-    [tenants]
+    [tenants, useSupabase, updateProperty]
   );
 
   // -----------------------
   // Payments CRUD
   // -----------------------
-  const addPayment = useCallback((payment: Omit<Payment, 'id'>) => {
-    const newPayment: Payment = { ...payment, id: Date.now().toString() };
-    setPayments((prev) => [...prev, newPayment]);
-    return newPayment;
-  }, []);
+  const addPayment = useCallback(async (payment: Omit<Payment, 'id'>) => {
+    if (useSupabase) {
+      try {
+        const newPayment = await supabaseService.createPayment(payment);
+        setPayments((prev) => [...prev, newPayment]);
+        return newPayment;
+      } catch (error) {
+        console.error('Error creating payment:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      const newPayment: Payment = { ...payment, id: Date.now().toString() };
+      setPayments((prev) => [...prev, newPayment]);
+      return newPayment;
+    }
+  }, [useSupabase]);
 
-  const updatePayment = useCallback((id: string, updates: Partial<Payment>) => {
+  const updatePayment = useCallback(async (id: string, updates: Partial<Payment>) => {
+    let updatesWithStatus = { ...updates };
     if (updates.amountPaid !== undefined && updates.amount !== undefined) {
       if (updates.amountPaid === 0) {
-        updates.status = 'Not Paid Yet';
+        updatesWithStatus.status = 'Not Paid Yet';
       } else if (updates.amountPaid >= updates.amount) {
-        updates.status = 'Paid';
+        updatesWithStatus.status = 'Paid';
       } else {
-        updates.status = 'Partially Paid';
+        updatesWithStatus.status = 'Partially Paid';
       }
     }
-    setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
-  }, []);
 
-  const deletePayment = useCallback((id: string) => {
-    setPayments((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+    if (useSupabase) {
+      try {
+        const updatedPayment = await supabaseService.updatePayment(id, updatesWithStatus);
+        setPayments((prev) => prev.map((p) => (p.id === id ? updatedPayment : p)));
+        return updatedPayment;
+      } catch (error) {
+        console.error('Error updating payment:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...updatesWithStatus } : p)));
+    }
+  }, [useSupabase]);
+
+  const deletePayment = useCallback(async (id: string) => {
+    if (useSupabase) {
+      try {
+        await supabaseService.deletePayment(id);
+        setPayments((prev) => prev.filter((p) => p.id !== id));
+      } catch (error) {
+        console.error('Error deleting payment:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      setPayments((prev) => prev.filter((p) => p.id !== id));
+    }
+  }, [useSupabase]);
 
   // -----------------------
   // Repair Requests CRUD
   // -----------------------
-  const addRepairRequest = useCallback((request: Omit<RepairRequest, 'id'>) => {
-    const newRequest: RepairRequest = { ...request, id: Date.now().toString() };
-    setRepairRequests((prev) => [...prev, newRequest]);
-    return newRequest;
-  }, []);
+  const addRepairRequest = useCallback(async (request: Omit<RepairRequest, 'id'>) => {
+    if (useSupabase) {
+      try {
+        const newRequest = await supabaseService.createRepairRequest(request);
+        setRepairRequests((prev) => [...prev, newRequest]);
+        return newRequest;
+      } catch (error) {
+        console.error('Error creating repair request:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      const newRequest: RepairRequest = { ...request, id: Date.now().toString() };
+      setRepairRequests((prev) => [...prev, newRequest]);
+      return newRequest;
+    }
+  }, [useSupabase]);
 
   const updateRepairRequest = useCallback(
-    (id: string, updates: Partial<RepairRequest>) => {
+    async (id: string, updates: Partial<RepairRequest>) => {
+      let updatesWithDate = { ...updates };
       if (updates.status === 'completed' && !updates.dateResolved) {
-        updates.dateResolved = new Date().toISOString().split('T')[0];
+        updatesWithDate.dateResolved = new Date().toISOString().split('T')[0];
       }
-      setRepairRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
-      );
+
+      if (useSupabase) {
+        try {
+          const updatedRequest = await supabaseService.updateRepairRequest(id, updatesWithDate);
+          setRepairRequests((prev) =>
+            prev.map((r) => (r.id === id ? updatedRequest : r))
+          );
+          return updatedRequest;
+        } catch (error) {
+          console.error('Error updating repair request:', error);
+          throw error;
+        }
+      } else {
+        // Local-only mode
+        setRepairRequests((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, ...updatesWithDate } : r))
+        );
+      }
     },
-    []
+    [useSupabase]
   );
 
-  const deleteRepairRequest = useCallback((id: string) => {
-    setRepairRequests((prev) => prev.filter((r) => r.id !== id));
-  }, []);
+  const deleteRepairRequest = useCallback(async (id: string) => {
+    if (useSupabase) {
+      try {
+        await supabaseService.deleteRepairRequest(id);
+        setRepairRequests((prev) => prev.filter((r) => r.id !== id));
+      } catch (error) {
+        console.error('Error deleting repair request:', error);
+        throw error;
+      }
+    } else {
+      // Local-only mode
+      setRepairRequests((prev) => prev.filter((r) => r.id !== id));
+    }
+  }, [useSupabase]);
 
   // -----------------------
-  // Google Sheets Sync
+  // Supabase Sync
   // -----------------------
-  const syncToGoogleSheets = useCallback(async () => {
-    if (!googleSheetsService.isConnected()) {
-      throw new Error('Google Sheets not connected');
+  const syncWithSupabase = useCallback(async () => {
+    if (!useSupabase) {
+      throw new Error('Supabase not enabled');
     }
+    
     setIsSyncing(true);
 
     try {
-      const config = googleSheetsService.getConfig();
-      if (!config?.spreadsheetId) throw new Error('No spreadsheet selected');
-
-      await googleSheetsService.createSheetsIfNeeded(config.spreadsheetId);
-
-      await Promise.all([
-        googleSheetsService.syncProperties(properties),
-        googleSheetsService.syncTenants(tenants),
-        googleSheetsService.syncPayments(payments),
-        googleSheetsService.syncRepairRequests(repairRequests),
-      ]);
-
-      return { success: true, message: 'Data synced to Google Sheets' };
-    } catch (error) {
-      console.error('Sync error:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to sync',
-      };
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [properties, tenants, payments, repairRequests]);
-
-  const pullFromGoogleSheets = useCallback(async () => {
-    if (!googleSheetsService.isConnected()) {
-      throw new Error('Google Sheets not connected');
-    }
-    setIsSyncing(true);
-
-    try {
-      const config = googleSheetsService.getConfig();
-      if (!config?.spreadsheetId) throw new Error('No spreadsheet selected');
-
-      const data = await googleSheetsService.pullFromSheets();
+      const data = await supabaseService.syncAllData();
 
       setProperties(data.properties);
       setTenants(data.tenants);
       setPayments(data.payments);
       setRepairRequests(data.repairRequests);
 
-      return { success: true, message: 'Data pulled from Google Sheets' };
-    } catch (error) {
-      console.error('Pull error:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to pull',
-      };
-    } finally {
-      setIsSyncing(false);
-    }
-  }, []);
-
-  const syncWithGoogleSheets = useCallback(async () => {
-    if (!googleSheetsService.isConnected()) {
-      throw new Error('Google Sheets not connected');
-    }
-    setIsSyncing(true);
-
-    try {
-      const config = googleSheetsService.getConfig();
-      if (!config?.spreadsheetId) throw new Error('No spreadsheet selected');
-
-      await googleSheetsService.createSheetsIfNeeded(config.spreadsheetId);
-
-      const pulledData = await googleSheetsService.pullFromSheets();
-
-      setProperties(pulledData.properties);
-      setTenants(pulledData.tenants);
-      setPayments(pulledData.payments);
-      setRepairRequests(pulledData.repairRequests);
-
-      await Promise.all([
-        googleSheetsService.syncProperties(pulledData.properties),
-        googleSheetsService.syncTenants(pulledData.tenants),
-        googleSheetsService.syncPayments(pulledData.payments),
-        googleSheetsService.syncRepairRequests(pulledData.repairRequests),
-      ]);
-
-      return { success: true, message: 'Data synced with Google Sheets' };
+      return { success: true, message: 'Data synced with Supabase successfully' };
     } catch (error) {
       console.error('Sync error:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to sync',
+        message: error instanceof Error ? error.message : 'Failed to sync with Supabase',
       };
     } finally {
       setIsSyncing(false);
     }
+  }, [useSupabase]);
+
+  // Backward compatibility methods (now no-ops or redirects)
+  const syncToGoogleSheets = useCallback(async () => {
+    return { success: false, message: 'Google Sheets integration has been replaced with Supabase' };
   }, []);
+
+  const pullFromGoogleSheets = useCallback(async () => {
+    return { success: false, message: 'Google Sheets integration has been replaced with Supabase' };
+  }, []);
+
+  const syncWithGoogleSheets = useCallback(async () => {
+    return syncWithSupabase();
+  }, [syncWithSupabase]);
 
   // -----------------------
   // Return API
@@ -392,6 +554,7 @@ export const useData = () => {
     payments,
     repairRequests,
     isSyncing,
+    isLoading,
 
     // Properties
     addProperty,
@@ -420,7 +583,10 @@ export const useData = () => {
     generateCurrentAndNextMonth,
     generateUpcomingMonths,
 
-    // Sync
+    // Sync (Supabase)
+    syncWithSupabase,
+    
+    // Backward compatibility (deprecated)
     syncToGoogleSheets,
     pullFromGoogleSheets,
     syncWithGoogleSheets,
