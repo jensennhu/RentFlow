@@ -9,7 +9,8 @@ import {
   Trash2,
   Grid3X3,
   List,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import {
   BarChart,
@@ -44,6 +45,7 @@ interface Property {
   address: string;
   type?: string;
   rent: number;
+  status?: string;
 }
 
 interface Tenant {
@@ -54,6 +56,7 @@ interface Tenant {
   phone: string;
   leaseStart: string;
   leaseEnd: string;
+  paymentMethod?: string;
 }
 
 interface DataHook {
@@ -198,7 +201,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   // State
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
-  // replaced with sortConfig to allow header clicks for any column
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({
     key: 'date',
     direction: 'desc'
@@ -214,6 +216,18 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkMonth, setBulkMonth] = useState<string>('');
+  const [bulkPayments, setBulkPayments] = useState<Array<{
+    propertyId: string;
+    tenantId: string;
+    amount: number;
+    amountPaid: number;
+    method: string;
+    date: string;
+  }>>([]);
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const [formData, setFormData] = useState({
     propertyId: '',
@@ -409,8 +423,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       missingAmount: Math.max(totalRentDue - paidThisMonth, 0),
     };
   }, [payments, properties, tenants, selectedTenant]);
-  
-
 
   // Auto-update status as user types
   useEffect(() => {
@@ -459,51 +471,49 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     setShowForm(true);
   }, []);
 
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    clearError();
 
-// REPLACE handleSubmit function:
-const handleSubmit = useCallback(async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsSubmitting(true);
-  clearError();
+    try {
+      // Validate form data
+      const validationResult = PaymentSchema.safeParse(formData);
+      if (!validationResult.success) {
+        const firstError = validationResult.error.errors[0];
+        setFormError(firstError.message);
+        return;
+      }
 
-  try {
-    // Validate form data
-    const validationResult = PaymentSchema.safeParse(formData);
-    if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0];
-      setFormError(firstError.message);
-      return;
+      const { amount, amountPaid, ...rest } = validationResult.data;
+
+      // Additional business logic validation
+      if (amountPaid > amount) {
+        setFormError("Amount paid cannot exceed total amount.");
+        return;
+      }
+
+      const paymentData = {
+        ...rest,
+        amount,
+        amountPaid,
+        status: formData.status
+      };
+
+      if (editingPayment) {
+        await updatePayment(editingPayment.id, paymentData);
+      } else {
+        await addPayment(paymentData);
+      }
+
+      resetForm();
+    } catch (error) {
+      handleError(error as Error, 'Payment Save');
+      setFormError("An error occurred while saving the payment. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const { amount, amountPaid, ...rest } = validationResult.data;
-
-    // Additional business logic validation
-    if (amountPaid > amount) {
-      setFormError("Amount paid cannot exceed total amount.");
-      return;
-    }
-
-    const paymentData = {
-      ...rest,
-      amount,
-      amountPaid,
-      status: formData.status
-    };
-
-    if (editingPayment) {
-      await updatePayment(editingPayment.id, paymentData);
-    } else {
-      await addPayment(paymentData);
-    }
-
-    resetForm();
-  } catch (error) {
-    handleError(error as Error, 'Payment Save');
-    setFormError("An error occurred while saving the payment. Please try again.");
-  } finally {
-    setIsSubmitting(false);
-  }
-}, [formData, editingPayment, addPayment, updatePayment, resetForm, handleError, clearError]);
+  }, [formData, editingPayment, addPayment, updatePayment, resetForm, handleError, clearError]);
 
   const handleDeleteClick = useCallback((id: string) => {
     setDeleteModal({ isOpen: true, paymentId: id });
@@ -515,7 +525,6 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
         await deletePayment(deleteModal.paymentId);
         setDeleteModal({ isOpen: false, paymentId: null });
       } catch (error) {
-        // Handle error - could show a toast notification
         console.error('Failed to delete payment:', error);
       }
     }
@@ -524,6 +533,100 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
   const handleDeleteCancel = useCallback(() => {
     setDeleteModal({ isOpen: false, paymentId: null });
   }, []);
+
+  // Bulk payment generation
+  const handleGenerateMonth = useCallback(() => {
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    
+    setSelectedMonth(nextMonth.getMonth() + 1); // 1-12
+    setSelectedYear(nextMonth.getFullYear());
+    
+    const monthStr = nextMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+    setBulkMonth(monthStr);
+    setShowBulkForm(true);
+  }, []);
+
+  const handleMonthYearChange = useCallback((month: number, year: number) => {
+    const date = new Date(year, month - 1, 1);
+    const monthStr = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+    setBulkMonth(monthStr);
+    
+    // Get all occupied properties
+    const occupiedProperties = properties.filter(p => p.status === 'occupied');
+    
+    const initialPayments = occupiedProperties.map(property => {
+      const tenant = tenants.find(t => t.propertyId === property.id);
+      return {
+        propertyId: property.id,
+        tenantId: tenant?.id || '',
+        amount: property.rent,
+        amountPaid: 0,
+        method: tenant?.paymentMethod || '',
+        date: ''
+      };
+    });
+    
+    setBulkPayments(initialPayments);
+  }, [properties, tenants]);
+
+  // Check if payments already exist for a given month
+  const checkExistingPayments = useCallback((month: string): number => {
+    return payments.filter(p => p.rentMonth === month).length;
+  }, [payments]);
+
+  const handleBulkPaymentChange = useCallback((index: number, field: string, value: string | number) => {
+    setBulkPayments(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  }, []);
+
+  const handleBulkSubmit = useCallback(async () => {
+    // Check if payments already exist for this month
+    const existingCount = checkExistingPayments(bulkMonth);
+    
+    if (existingCount > 0) {
+      const confirmed = window.confirm(
+        `Warning: ${existingCount} payment record(s) already exist for ${bulkMonth}.\n\nAre you sure you want to create ${bulkPayments.length} additional payment(s)?`
+      );
+      
+      if (!confirmed) {
+        return;
+      }
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      for (const payment of bulkPayments) {
+        const status: Payment['status'] = 
+          payment.amountPaid === 0 ? 'Not Paid Yet' :
+          payment.amountPaid >= payment.amount ? 'Paid' :
+          'Partially Paid';
+
+        await addPayment({
+          propertyId: payment.propertyId,
+          tenantId: payment.tenantId,
+          amount: payment.amount,
+          amountPaid: payment.amountPaid,
+          date: payment.date,
+          status,
+          method: payment.method,
+          rentMonth: bulkMonth
+        });
+      }
+      
+      setShowBulkForm(false);
+      setBulkPayments([]);
+      setBulkMonth('');
+    } catch (error) {
+      console.error('Error creating bulk payments:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [bulkPayments, bulkMonth, addPayment, checkExistingPayments]);
 
   // Header-click sorting helper for table columns
   const handleHeaderSort = (key: SortKey) => {
@@ -567,6 +670,13 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
             </button>
           </div>
           <button
+            onClick={handleGenerateMonth}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Generate Month
+          </button>
+          <button
             onClick={() => setShowForm(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
@@ -578,7 +688,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Current Month Radial Chart (replaces Tenant Payments by Month) */}
+        {/* Current Month Radial Chart */}
         <ChartErrorBoundary>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between mb-4">
@@ -786,16 +896,15 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                     }
 
                     return orderedMonths.map((month) => {
-                      let monthPayments = grouped[month]; // get payments for this month
+                      let monthPayments = grouped[month];
                       const isExpanded = expandedMonths.includes(month);
                     
-                      // SORT PAYMENTS INSIDE THE MONTH BY PROPERTY
+                      // Sort payments inside the month by property
                       monthPayments = monthPayments.slice().sort((a, b) => {
                         const aProp = properties.find(p => p.id === a.propertyId)?.address || '';
                         const bProp = properties.find(p => p.id === b.propertyId)?.address || '';
                         return aProp.localeCompare(bProp);
                       });
-                    
 
                     return (
                       <React.Fragment key={month}>
@@ -1085,6 +1194,221 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
         onConfirm={handleDeleteConfirm}
         paymentId={deleteModal.paymentId || ''}
       />
+
+      {/* Bulk Payment Generation Modal */}
+      {showBulkForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold">Generate Monthly Payments</h3>
+              <button
+                onClick={() => {
+                  setShowBulkForm(false);
+                  setBulkPayments([]);
+                  setBulkMonth('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Month Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Month to Generate
+              </label>
+              <div className="flex gap-3 items-center">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    const newMonth = parseInt(e.target.value);
+                    setSelectedMonth(newMonth);
+                    handleMonthYearChange(newMonth, selectedYear);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value={1}>January</option>
+                  <option value={2}>February</option>
+                  <option value={3}>March</option>
+                  <option value={4}>April</option>
+                  <option value={5}>May</option>
+                  <option value={6}>June</option>
+                  <option value={7}>July</option>
+                  <option value={8}>August</option>
+                  <option value={9}>September</option>
+                  <option value={10}>October</option>
+                  <option value={11}>November</option>
+                  <option value={12}>December</option>
+                </select>
+                
+                <select
+                  value={selectedYear}
+                  onChange={(e) => {
+                    const newYear = parseInt(e.target.value);
+                    setSelectedYear(newYear);
+                    handleMonthYearChange(selectedMonth, newYear);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {Array.from({ length: 20 }, (_, i) => {
+                    const year = new Date().getFullYear() - 2 + i;
+                    return (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    );
+                  })}
+                </select>
+                
+                <button
+                  onClick={() => handleMonthYearChange(selectedMonth, selectedYear)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                >
+                  Load Properties
+                </button>
+              </div>
+              
+              {bulkMonth && checkExistingPayments(bulkMonth) > 0 && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-yellow-800">
+                    <strong>Warning:</strong> {checkExistingPayments(bulkMonth)} payment record(s) already exist for {bulkMonth}.
+                    Creating new payments will add to existing records.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                Review and edit payment details for all occupied properties. You can adjust amounts, 
+                payment methods, and dates before creating the records.
+              </p>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              {bulkPayments.map((payment, index) => {
+                const property = properties.find(p => p.id === payment.propertyId);
+                const tenant = tenants.find(t => t.id === payment.tenantId);
+
+                return (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{property?.address}</h4>
+                        <p className="text-sm text-gray-600">Tenant: {tenant?.name || 'Unknown'}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setBulkPayments(prev => prev.filter((_, i) => i !== index));
+                        }}
+                        className="text-red-600 hover:text-red-700"
+                        title="Remove from batch"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Total Amount
+                        </label>
+                        <input
+                          type="number"
+                          value={payment.amount}
+                          onChange={(e) => handleBulkPaymentChange(index, 'amount', parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Amount Paid
+                        </label>
+                        <input
+                          type="number"
+                          value={payment.amountPaid}
+                          onChange={(e) => handleBulkPaymentChange(index, 'amountPaid', parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Payment Method
+                        </label>
+                        <input
+                          type="text"
+                          value={payment.method}
+                          onChange={(e) => handleBulkPaymentChange(index, 'method', e.target.value)}
+                          placeholder="e.g., Bank Transfer"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Payment Date
+                        </label>
+                        <input
+                          type="date"
+                          value={payment.date}
+                          onChange={(e) => handleBulkPaymentChange(index, 'date', e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {bulkPayments.length === 0 && bulkMonth && (
+              <div className="text-center py-8 text-gray-500">
+                No occupied properties found. Click "Load Properties" to generate payments for occupied properties.
+              </div>
+            )}
+
+            {!bulkMonth && (
+              <div className="text-center py-8 text-gray-500">
+                Enter a month above and click "Load Properties" to get started.
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowBulkForm(false);
+                  setBulkPayments([]);
+                  setBulkMonth('');
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkSubmit}
+                disabled={isSubmitting || bulkPayments.length === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating {bulkPayments.length} Payment{bulkPayments.length !== 1 ? 's' : ''}...
+                  </>
+                ) : (
+                  <>
+                    Create {bulkPayments.length} Payment{bulkPayments.length !== 1 ? 's' : ''} for {bulkMonth}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
