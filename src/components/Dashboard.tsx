@@ -65,6 +65,21 @@ export const supabaseService = {
 export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
 
+  // Current month boundaries
+  const now = new Date();
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  // Received rent in current month
+  const receivedRent = useMemo(() => {
+    return payments
+      .filter(p => {
+        const paymentDate = new Date(p.date); // adjust if field is rent_month instead
+        return paymentDate >= firstDayOfMonth && paymentDate <= lastDayOfMonth;
+      })
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+  }, [payments]);
+  
   // Filter only submitted or in-progress repairs
   const activeRepairs = useMemo(
     () => repairRequests.filter(r => r.status === 'pending' || r.status === 'in-progress'),
@@ -119,6 +134,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
     { name: 'Occupied', value: occupiedProperties, icon: Users, color: 'green' },
     { name: 'Vacant', value: vacantProperties, icon: Users, color: 'gray' },
     { name: 'Expected Revenue', value: `${expectedRevenue.toLocaleString()}`, icon: DollarSign, color: 'yellow' },
+    { name: 'Received Rent', value: `${receivedRent.toLocaleString()}`, icon: DollarSign, color: 'green' },
     { name: 'Pending Repairs', value: activeRepairs.length, icon: Wrench, color: 'orange' },
   ];
 
