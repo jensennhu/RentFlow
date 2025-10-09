@@ -316,7 +316,7 @@ export const useData = () => {
   }, [useSupabase, updateProperty]);
 
   const updateTenant = useCallback(async (id: string, updates: Partial<Tenant>) => {
-    let updatesWithRenewal = { ...updates };
+    const updatesWithRenewal = { ...updates };
     if (updates.leaseEnd) {
       const leaseEndDate = new Date(updates.leaseEnd);
       const renewalDate = new Date(
@@ -396,7 +396,7 @@ export const useData = () => {
   }, [useSupabase]);
 
   const updatePayment = useCallback(async (id: string, updates: Partial<Payment>) => {
-    let updatesWithStatus = { ...updates };
+    const updatesWithStatus = { ...updates };
     if (updates.amountPaid !== undefined && updates.amount !== undefined) {
       if (updates.amountPaid === 0) {
         updatesWithStatus.status = 'Not Paid Yet';
@@ -460,7 +460,7 @@ export const useData = () => {
 
   const updateRepairRequest = useCallback(
     async (id: string, updates: Partial<RepairRequest>) => {
-      let updatesWithDate = { ...updates };
+      const updatesWithDate = { ...updates };
       if (updates.status === 'completed' && !updates.dateResolved) {
         updatesWithDate.dateResolved = new Date().toISOString().split('T')[0];
       }
