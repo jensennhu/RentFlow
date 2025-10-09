@@ -58,8 +58,21 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       );
     })
     .sort((a, b) => {
-      let aValue: string | number | Date | null = a[sortBy as keyof typeof a] as any;
-      let bValue: string | number | Date | null = b[sortBy as keyof typeof b] as any;
+      let aValue: string | number | Date | null;
+      let bValue: string | number | Date | null;
+      if (sortBy === 'name' || sortBy === 'email') {
+        aValue = String(a[sortBy] ?? '');
+        bValue = String(b[sortBy] ?? '');
+      } else if (sortBy === 'rentAmount') {
+        aValue = a.rentAmount ?? 0;
+        bValue = b.rentAmount ?? 0;
+      } else if (sortBy === 'leaseEnd') {
+        aValue = a.leaseEnd ? new Date(a.leaseEnd) : null;
+        bValue = b.leaseEnd ? new Date(b.leaseEnd) : null;
+      } else {
+        aValue = '';
+        bValue = '';
+      }
       
       if (sortBy === 'leaseEnd') {
         aValue = a.leaseEnd ? new Date(a.leaseEnd) : null;

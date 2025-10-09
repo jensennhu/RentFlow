@@ -15,14 +15,7 @@ interface DashboardProps {
   dataHook: ReturnType<typeof useData>;
 }
 
-interface MissingPaymentsByMonth {
-  month: string;
-  expected: number;
-  received: number;
-  missing: number;
-  missingAmount: number;
-  occupiedProperties: string[];
-}
+//
 
 interface DataChange {
   id: string;
@@ -35,50 +28,23 @@ interface DataChange {
   newValue?: unknown;
 }
 
-export const supabaseService = {
-  async fetchAllData() {
-    const { data: properties } = await supabase.from('properties').select('*');
-    const { data: tenants } = await supabase.from('tenants').select('*');
-    const { data: payments } = await supabase.from('payments').select('*');
-    const { data: repairRequests } = await supabase.from('repair_requests').select('*');
-    return { properties, tenants, payments, repairRequests };
-  },
-
-  async updateData(changes: DataChange[]) {
-    for (const change of changes) {
-      switch (change.type) {
-        case 'add':
-          await supabase.from(change.table).insert(change.new);
-          break;
-        case 'update':
-          await supabase.from(change.table).update(change.new).eq('id', change.id);
-          break;
-        case 'delete':
-          await supabase.from(change.table).delete().eq('id', change.id);
-          break;
-      }
-    }
-    return { success: true };
-  }
-};
+//
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSync: _onSync, isSyncing: _isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
 
-  // Current month boundaries
-  const now = new Date();
-  const firstDayOfMonth = useMemo(() => new Date(now.getFullYear(), now.getMonth(), 1), [now]);
-  const lastDayOfMonth = useMemo(() => new Date(now.getFullYear(), now.getMonth() + 1, 0), [now]);
-
   // Received rent in current month
   const receivedRent = useMemo(() => {
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     return payments
       .filter(p => {
         const paymentDate = new Date(p.date); // adjust if field is rent_month instead
         return paymentDate >= firstDayOfMonth && paymentDate <= lastDayOfMonth;
       })
       .reduce((sum, p) => sum + (p.amount || 0), 0);
-  }, [payments, firstDayOfMonth, lastDayOfMonth]);
+  }, [payments]);
   
   // Filter only submitted or in-progress repairs
   const activeRepairs = useMemo(

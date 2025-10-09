@@ -28,6 +28,7 @@ export default tseslint.config(
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
           ignoreRestSiblings: true,
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
       'prefer-const': 'warn',

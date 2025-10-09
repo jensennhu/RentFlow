@@ -9,7 +9,7 @@ interface SupabaseSetupProps {
   onSetup: () => void;
 }
 
-export const SupabaseSetup: React.FC<SupabaseSetupProps> = ({ isOpen, onClose, onSetup: _onSetup }) => {
+export const SupabaseSetup: React.FC<SupabaseSetupProps> = ({ isOpen, onClose }) => {
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
   const [isLoading, setIsLoading] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
