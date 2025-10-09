@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Filter, Search, Edit, Trash2, Grid3X3, List, BarChart3 } from 'lucide-react';
+import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Filter, Search, CreditCard as Edit, Trash2, Grid3x3 as Grid3X3, List, BarChart3 } from 'lucide-react';
 import { PaymentGeneration } from './PaymentGeneration';
 import type { useData } from '../hooks/useData';
 
