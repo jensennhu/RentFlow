@@ -246,22 +246,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const occupiedPropertiesCount = properties.filter(p => p.status === 'occupied').length;
   const totalPropertiesCount = properties.length;
 
-  const handleGenerateForMonth = (month: number, year: number, force?: boolean) => {
-    return dataHook.generatePaymentsForSpecificMonth(month, year, force);
-  };
-
-  const handleGenerateRange = (startMonth: number, startYear: number, endMonth: number, endYear: number) => {
-    return dataHook.generatePaymentsForRange(startMonth, startYear, endMonth, endYear);
-  };
-
-  const handleGenerateCurrentAndNext = () => {
-    return dataHook.generateCurrentAndNextMonth();
-  };
-
-  const handleGenerateUpcoming = (monthsAhead: number) => {
-    return dataHook.generateUpcomingMonths(monthsAhead);
-  };
-
   return (
     <div className="p-6">
       {/* Header */}
@@ -330,10 +314,10 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
           {/* Payment Generation Section */}
           <div className="mb-8">
             <PaymentGeneration
-              onGenerateForMonth={handleGenerateForMonth}
-              onGenerateRange={handleGenerateRange}
-              onGenerateCurrentAndNext={handleGenerateCurrentAndNext}
-              onGenerateUpcoming={handleGenerateUpcoming}
+              onGenerateForMonth={(month, year, force) => dataHook.generatePaymentsForSpecificMonth(month, year, force)}
+              onGenerateRange={(startMonth, startYear, endMonth, endYear) => dataHook.generatePaymentsForRange(startMonth, startYear, endMonth, endYear)}
+              onGenerateCurrentAndNext={() => dataHook.generateCurrentAndNextMonth()}
+              onGenerateUpcoming={(monthsAhead) => dataHook.generateUpcomingMonths(monthsAhead)}
               occupiedPropertiesCount={occupiedPropertiesCount}
               totalPropertiesCount={totalPropertiesCount}
             />

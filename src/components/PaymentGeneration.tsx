@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Calendar, Plus, RefreshCw, Settings, Check, AlertTriangle, Info } from 'lucide-react';
 
 interface PaymentGenerationProps {
-  onGenerateForMonth: (month: number, year: number, force?: boolean) => { generated: number; month: string };
-  onGenerateRange: (startMonth: number, startYear: number, endMonth: number, endYear: number) => Array<{ generated: number; month: string }>;
-  onGenerateCurrentAndNext: () => { current: { generated: number; month: string }; next: { generated: number; month: string }; totalGenerated: number };
-  onGenerateUpcoming: (monthsAhead: number) => Array<{ generated: number; month: string }>;
+  onGenerateForMonth: (month: number, year: number, force?: boolean) => Promise<{ generated: number; month: string }>;
+  onGenerateRange: (startMonth: number, startYear: number, endMonth: number, endYear: number) => Promise<Array<{ generated: number; month: string }>>;
+  onGenerateCurrentAndNext: () => Promise<{ current: { generated: number; month: string }; next: { generated: number; month: string }; totalGenerated: number }>;
+  onGenerateUpcoming: (monthsAhead: number) => Promise<Array<{ generated: number; month: string }>>;
   occupiedPropertiesCount: number;
   totalPropertiesCount: number;
 }
@@ -36,7 +36,7 @@ export const PaymentGeneration: React.FC<PaymentGenerationProps> = ({
     setResults(null);
     
     try {
-      const result = onGenerateCurrentAndNext();
+      const result = await onGenerateCurrentAndNext();
       setResults(`Generated ${result.totalGenerated} payment records. Current month: ${result.current.generated}, Next month: ${result.next.generated}`);
     } catch (error) {
       setResults(`Error: ${error instanceof Error ? error.message : 'Generation failed'}`);
@@ -50,7 +50,7 @@ export const PaymentGeneration: React.FC<PaymentGenerationProps> = ({
     setResults(null);
     
     try {
-      const result = onGenerateForMonth(selectedMonth, selectedYear, forceCreate);
+      const result = await onGenerateForMonth(selectedMonth, selectedYear, forceCreate);
       setResults(`Generated ${result.generated} payment records for ${result.month}`);
     } catch (error) {
       setResults(`Error: ${error instanceof Error ? error.message : 'Generation failed'}`);
@@ -64,7 +64,7 @@ export const PaymentGeneration: React.FC<PaymentGenerationProps> = ({
     setResults(null);
     
     try {
-      const results = onGenerateUpcoming(monthsAhead);
+      const results = await onGenerateUpcoming(monthsAhead);
       const totalGenerated = results.reduce((sum, r) => sum + r.generated, 0);
       setResults(`Generated ${totalGenerated} payment records across ${results.length} months`);
     } catch (error) {
@@ -85,7 +85,7 @@ export const PaymentGeneration: React.FC<PaymentGenerationProps> = ({
       const endMonth = startMonth;
       const endYear = startYear + 1;
       
-      const results = onGenerateRange(startMonth, startYear, endMonth, endYear);
+      const results = await onGenerateRange(startMonth, startYear, endMonth, endYear);
       const totalGenerated = results.reduce((sum, r) => sum + r.generated, 0);
       setResults(`Generated ${totalGenerated} payment records for the next 12 months`);
     } catch (error) {
