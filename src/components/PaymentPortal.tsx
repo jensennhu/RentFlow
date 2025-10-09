@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Filter, Search, CreditCard as Edit, Trash2, Grid3x3 as Grid3X3, List, BarChart3 } from 'lucide-react';
+import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Filter, Search, Edit, Trash2, Grid3X3, List, BarChart3 } from 'lucide-react';
 import { PaymentGeneration } from './PaymentGeneration';
 import type { useData } from '../hooks/useData';
 
@@ -53,7 +53,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       const monthlyData: { [month: string]: { paid: number; expected: number; status: 'paid' | 'partial' | 'missing' } } = {};
       
       months.forEach(month => {
-        const monthKey = `${month} ${currentYear}`;
         monthlyData[month] = { paid: 0, expected: 0, status: 'missing' };
       });
 
