@@ -84,16 +84,20 @@ class SupabaseService {
   private supabase: SupabaseClient<Database>;
 
   constructor() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error(
-        'Missing Supabase configuration. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.'
-      );
+      // Do not throw during app startup; allow mock-only mode.
+      // A real client will be required only when Supabase is enabled.
+      // Use a benign placeholder to satisfy types; calls will fail fast if invoked.
+      console.warn('Supabase configuration missing; running without Supabase client.');
     }
 
-    this.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+    this.supabase = createClient<Database>(
+      supabaseUrl || 'https://placeholder.supabase.co',
+      supabaseAnonKey || 'public-anon-key'
+    );
   }
 
   // Connection test
