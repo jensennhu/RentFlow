@@ -2,9 +2,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Building, Database, User, LogOut, Settings, ChevronDown } from 'lucide-react';
 
+interface MinimalUser {
+  email?: string;
+  user_metadata?: {
+    full_name?: string;
+    avatar_url?: string;
+  };
+}
+
 interface HeaderProps {
   onOpenSupabaseSetup: () => void;
-  user?: any;
+  user?: MinimalUser;
   onSignOut?: () => void;
 }
 

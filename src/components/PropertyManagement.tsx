@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Home, Users, DollarSign, Settings, MapPin, Edit, Trash2, Calendar, Grid3X3, List, Map as MapIcon, Loader2 } from 'lucide-react';
+import { Plus, Home, Users, DollarSign, MapPin, Edit, Trash2, Calendar, Grid3X3, List, Map as MapIcon, Loader2 } from 'lucide-react';
 
 // Types (moved inline to avoid external imports)
 interface Property {
@@ -296,12 +296,12 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
   
   const [showForm, setShowForm] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  // const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table' | 'map'>('table');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'address' | 'city'| 'state'| 'zipcode'| 'rent' | 'status'>('address');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
+  // const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     address: '',
@@ -322,8 +322,8 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
         property.status.toLowerCase().includes(searchTerm.toLowerCase())
       )
       .sort((a, b) => {
-        let aValue = a[sortBy];
-        let bValue = b[sortBy];
+        let aValue: string | number = a[sortBy];
+        let bValue: string | number = b[sortBy];
         
         if (sortBy === 'rent') {
           aValue = a.rent;
@@ -362,7 +362,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
       status: property.status
     });
     setShowForm(true);
-    setSelectedProperty(property.id);
   }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
@@ -394,18 +393,15 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
   }, [formData, editingProperty, addProperty, updateProperty, resetForm]);
 
   const handleDelete = useCallback((id: string) => {
-    const property = properties.find(p => p.id === id);
     const tenant = tenants.find(t => t.propertyId === id);
     
     if (tenant) {
       if (confirm(`This property has a tenant (${tenant.name}). Deleting the property will also remove the tenant. Are you sure?`)) {
         deleteProperty(id);
-        setShowDeleteConfirm(null);
       }
     } else {
       if (confirm('Are you sure you want to delete this property?')) {
         deleteProperty(id);
-        setShowDeleteConfirm(null);
       }
     }
   }, [properties, tenants, deleteProperty]);
@@ -479,7 +475,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
           <div className="flex gap-2">
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as 'address' | 'city'| 'state'| 'zipcode'| 'rent' | 'status')}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               aria-label="Sort properties by"
             >

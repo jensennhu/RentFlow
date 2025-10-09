@@ -84,16 +84,20 @@ class SupabaseService {
   private supabase: SupabaseClient<Database>;
 
   constructor() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error(
-        'Missing Supabase configuration. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.'
-      );
+      // Do not throw during app startup; allow mock-only mode.
+      // A real client will be required only when Supabase is enabled.
+      // Use a benign placeholder to satisfy types; calls will fail fast if invoked.
+      console.warn('Supabase configuration missing; running without Supabase client.');
     }
 
-    this.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+    this.supabase = createClient<Database>(
+      supabaseUrl || 'https://placeholder.supabase.co',
+      supabaseAnonKey || 'public-anon-key'
+    );
   }
 
   // Connection test
@@ -375,7 +379,7 @@ class SupabaseService {
   }
 
   private mapPropertyToDB(property: Partial<Property>): Partial<Database['public']['Tables']['properties']['Insert']> {
-    const mapped: any = {};
+    const mapped: Partial<Database['public']['Tables']['properties']['Insert']> = {};
     if (property.address !== undefined) mapped.address = property.address;
     if (property.city !== undefined) mapped.city = property.city;
     if (property.state !== undefined) mapped.state = property.state;
@@ -402,7 +406,7 @@ class SupabaseService {
   }
 
   private mapTenantToDB(tenant: Partial<Tenant>): Partial<Database['public']['Tables']['tenants']['Insert']> {
-    const mapped: any = {};
+    const mapped: Partial<Database['public']['Tables']['tenants']['Insert']> = {};
     if (tenant.name !== undefined) mapped.name = tenant.name;
     if (tenant.email !== undefined) mapped.email = tenant.email || null;
     if (tenant.phone !== undefined) mapped.phone = tenant.phone || null;
@@ -432,7 +436,7 @@ class SupabaseService {
   }
 
   private mapPaymentToDB(payment: Partial<Payment>): Partial<Database['public']['Tables']['payments']['Insert']> {
-    const mapped: any = {};
+    const mapped: Partial<Database['public']['Tables']['payments']['Insert']> = {};
     if (payment.propertyId !== undefined) mapped.property_id = payment.propertyId || null;
     if (payment.tenantId !== undefined) mapped.tenant_id = payment.tenantId || null;
     if (payment.rentMonth !== undefined) mapped.rent_month = payment.rentMonth;
@@ -463,7 +467,7 @@ class SupabaseService {
   }
 
   private mapRepairRequestToDB(request: Partial<RepairRequest>): Partial<Database['public']['Tables']['repair_requests']['Insert']> {
-    const mapped: any = {};
+    const mapped: Partial<Database['public']['Tables']['repair_requests']['Insert']> = {};
     if (request.tenantId !== undefined) mapped.tenant_id = request.tenantId || null;
     if (request.propertyId !== undefined) mapped.property_id = request.propertyId || null;
     if (request.title !== undefined) mapped.title = request.title;

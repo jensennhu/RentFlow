@@ -53,8 +53,8 @@ export const AuthPage: React.FC = () => {
         const { error } = await signIn(email, password);
         if (error) throw error;
       }
-    } catch (error: any) {
-      setError(error.message || 'An unexpected error occurred');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
     }
   };
 
@@ -63,8 +63,8 @@ export const AuthPage: React.FC = () => {
     try {
       const { error } = await signInWithGoogle();
       if (error) throw error;
-    } catch (error: any) {
-      setError(error.message || 'Failed to sign in with Google');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to sign in with Google');
     }
   };
 

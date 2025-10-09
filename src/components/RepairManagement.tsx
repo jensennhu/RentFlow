@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Camera, Calendar, AlertTriangle, CheckCircle, Clock, User, Home, Grid3X3, List, Edit, Trash2 } from 'lucide-react';
+import { Plus, Calendar, AlertTriangle, CheckCircle, Clock, User, Home, Grid3X3, List, Edit, Trash2 } from 'lucide-react';
 import type { RepairRequest } from '../types';
 import type { useData } from '../hooks/useData';
 
@@ -48,8 +48,8 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
-      let aValue: any = a[sortBy];
-      let bValue: any = b[sortBy];
+      let aValue: string | number | Date;
+      let bValue: string | number | Date;
       
       if (sortBy === 'dateSubmitted') {
         aValue = new Date(a.dateSubmitted);
@@ -242,7 +242,7 @@ export const RepairManagement: React.FC<RepairManagementProps> = ({ dataHook }) 
         <div className="flex gap-2">
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'dateSubmitted' | 'priority' | 'status' | 'title')}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="dateSubmitted">Sort by Date</option>
