@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Filter, Search, CreditCard as Edit, Trash2, Grid3x3 as Grid3X3, List, BarChart3 } from 'lucide-react';
+import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Search, CreditCard as Edit, Trash2, Grid3x3 as Grid3X3, List, BarChart3 } from 'lucide-react';
 import { PaymentGeneration } from './PaymentGeneration';
 import type { useData } from '../hooks/useData';
+import type { Payment } from '../types';
 
 interface PaymentPortalProps {
   dataHook: ReturnType<typeof useData>;
@@ -20,7 +21,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   
   const [activeSubTab, setActiveSubTab] = useState<'payments' | 'aggregate'>('payments');
   const [showForm, setShowForm] = useState(false);
-  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -39,10 +40,13 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
 
   // Current year months for aggregate view
   const currentYear = new Date().getFullYear();
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+  const months = useMemo(
+    () => [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ],
+    []
+  );
 
   // Aggregate data calculation
   const aggregateData = useMemo((): MonthlyPaymentData[] => {
@@ -118,26 +122,25 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) => {
-        let aValue: any = a[sortBy as keyof typeof a];
-        let bValue: any = b[sortBy as keyof typeof b];
-        
+        let aValue: string | number | Date;
+        let bValue: string | number | Date;
+
         if (sortBy === 'property') {
           const propA = properties.find(p => p.id === a.propertyId);
           const propB = properties.find(p => p.id === b.propertyId);
           aValue = propA?.address || '';
           bValue = propB?.address || '';
-        }
-        
-        if (sortBy === 'date') {
+        } else if (sortBy === 'date') {
           aValue = new Date(a.date || '1970-01-01');
           bValue = new Date(b.date || '1970-01-01');
-        }
-        
-        if (sortBy === 'amount') {
+        } else if (sortBy === 'amount') {
           aValue = a.amount;
           bValue = b.amount;
+        } else {
+          aValue = a.status;
+          bValue = b.status;
         }
-        
+
         if (typeof aValue === 'string' && typeof bValue === 'string') {
           return sortOrder === 'asc' 
             ? aValue.localeCompare(bValue)
@@ -173,7 +176,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     setShowForm(false);
   };
 
-  const handleEdit = (payment: any) => {
+  const handleEdit = (payment: Payment) => {
     setEditingPayment(payment);
     setFormData({
       propertyId: payment.propertyId,
@@ -349,7 +352,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
               </select>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
+                onChange={(e) => setSortBy(e.target.value as 'date' | 'amount' | 'status' | 'property')}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="date">Sort by Date</option>

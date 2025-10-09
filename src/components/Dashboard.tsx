@@ -28,11 +28,11 @@ interface DataChange {
   id: string;
   type: 'add' | 'update' | 'delete';
   table: 'properties' | 'tenants' | 'payments' | 'repairRequests';
-  current?: any;
-  new?: any;
+  current?: unknown;
+  new?: unknown;
   field?: string;
-  oldValue?: any;
-  newValue?: any;
+  oldValue?: unknown;
+  newValue?: unknown;
 }
 
 export const supabaseService = {
@@ -62,13 +62,13 @@ export const supabaseService = {
   }
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHook }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onSync: _onSync, isSyncing: _isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
 
   // Current month boundaries
   const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const firstDayOfMonth = useMemo(() => new Date(now.getFullYear(), now.getMonth(), 1), [now]);
+  const lastDayOfMonth = useMemo(() => new Date(now.getFullYear(), now.getMonth() + 1, 0), [now]);
 
   // Received rent in current month
   const receivedRent = useMemo(() => {
@@ -78,7 +78,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync, isSyncing, dataHoo
         return paymentDate >= firstDayOfMonth && paymentDate <= lastDayOfMonth;
       })
       .reduce((sum, p) => sum + (p.amount || 0), 0);
-  }, [payments]);
+  }, [payments, firstDayOfMonth, lastDayOfMonth]);
   
   // Filter only submitted or in-progress repairs
   const activeRepairs = useMemo(

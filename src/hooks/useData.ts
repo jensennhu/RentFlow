@@ -460,7 +460,7 @@ export const useData = () => {
 
   const updateRepairRequest = useCallback(
     async (id: string, updates: Partial<RepairRequest>) => {
-      const updatesWithDate = { ...updates };
+    const updatesWithDate = { ...updates };
       if (updates.status === 'completed' && !updates.dateResolved) {
         updatesWithDate.dateResolved = new Date().toISOString().split('T')[0];
       }

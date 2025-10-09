@@ -12,7 +12,7 @@ export const PropertySchema = z.object({
 export const TenantSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email address'),
-  phone: z.string().regex(/^[\d\s\-\(\)\+]+$/, 'Invalid phone number'),
+  phone: z.string().regex(/^[\d\s()+-]+$/, 'Invalid phone number'),
   propertyId: z.string().min(1, 'Property selection is required'),
   leaseStart: z.string().min(1, 'Lease start date is required'),
   leaseEnd: z.string().min(1, 'Lease end date is required'),

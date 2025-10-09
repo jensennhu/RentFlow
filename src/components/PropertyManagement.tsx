@@ -479,7 +479,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
           <div className="flex gap-2">
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as 'address' | 'city'| 'state'| 'zipcode'| 'rent' | 'status')}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               aria-label="Sort properties by"
             >

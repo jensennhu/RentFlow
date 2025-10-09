@@ -58,8 +58,8 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
       );
     })
     .sort((a, b) => {
-      let aValue: any = a[sortBy];
-      let bValue: any = b[sortBy];
+      let aValue: string | number | Date | null = a[sortBy as keyof typeof a] as any;
+      let bValue: string | number | Date | null = b[sortBy as keyof typeof b] as any;
       
       if (sortBy === 'leaseEnd') {
         aValue = a.leaseEnd ? new Date(a.leaseEnd) : null;
@@ -227,7 +227,7 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
         <div className="flex gap-2">
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'name' | 'email' | 'rentAmount' | 'leaseEnd')}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="name">Sort by Name</option>

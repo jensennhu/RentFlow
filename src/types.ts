@@ -77,9 +77,9 @@ export interface DataChange {
   id: string;
   type: 'add' | 'update' | 'delete';
   table: 'properties' | 'tenants' | 'payments' | 'repairRequests';
-  current?: any;
-  new?: any;
+  current?: unknown;
+  new?: unknown;
   field?: string;
-  oldValue?: any;
-  newValue?: any;
+  oldValue?: unknown;
+  newValue?: unknown;
 }
