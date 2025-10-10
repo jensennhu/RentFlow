@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Search, CreditCard as Edit, Trash2, Grid3x3 as Grid3X3, List, BarChart3 } from 'lucide-react';
-import { PaymentGeneration } from './PaymentGeneration';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Search, Edit, Trash2, Grid3X3, List, BarChart3, CheckCircle, Clock, AlertCircle, X } from 'lucide-react';
 import type { useData } from '../hooks/useData';
 import type { Payment } from '../types';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 
 interface PaymentPortalProps {
   dataHook: ReturnType<typeof useData>;
@@ -11,10 +11,19 @@ interface PaymentPortalProps {
 interface MonthlyPaymentData {
   propertyId: string;
   propertyAddress: string;
+  tenantNames: string[];
   monthlyData: { [month: string]: { paid: number; expected: number; status: 'paid' | 'partial' | 'missing' } };
   totalPaid: number;
   totalExpected: number;
 }
+
+interface ChartDataPoint {
+  month: string;
+  revenue: number;
+  date?: Date;
+}
+
+const CHART_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
 
 export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const { properties, tenants, payments, addPayment, updatePayment, deletePayment } = dataHook;
@@ -27,6 +36,8 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'status' | 'property'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
+  const [selectedTenant, setSelectedTenant] = useState<string>("all");
   const [formData, setFormData] = useState({
     propertyId: '',
     tenantId: '',
@@ -48,11 +59,69 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     []
   );
 
+  // Enhanced month parsing
+  const parseMonth = useCallback((monthStr: string): Date => {
+    const formats = [
+      monthStr + " 1",
+      monthStr,
+      monthStr.replace(/(\d{4})-(\d{2})/, "$2/1/$1")
+    ];
+    for (const format of formats) {
+      const date = new Date(format);
+      if (!isNaN(date.getTime())) return date;
+    }
+    return new Date(0);
+  }, []);
+
+  // Chart data calculations
+  const chartData = useMemo(() => {
+    const revenueByMonth = payments.reduce((acc: Record<string, number>, p) => {
+      const month = p.rentMonth || "Unknown";
+      acc[month] = (acc[month] || 0) + p.amountPaid;
+      return acc;
+    }, {});
+    
+    const revenueChartData: ChartDataPoint[] = Object.keys(revenueByMonth)
+      .map(month => ({
+        month,
+        revenue: revenueByMonth[month],
+        date: parseMonth(month)
+      }))
+      .sort((a, b) => a.date!.getTime() - b.date!.getTime())
+      .map(({ month, revenue }) => ({ month, revenue }));
+
+    return { revenueChartData };
+  }, [payments, parseMonth]);
+
+  const currentMonthData = useMemo(() => {
+    const now = new Date();
+    const currentMonthStr = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+    
+    let relevantProperties = properties.filter(p => p.status === 'occupied');
+    if (selectedTenant !== 'all') {
+      const tenantObj = tenants.find(t => t.id === selectedTenant);
+      relevantProperties = tenantObj ? relevantProperties.filter(p => p.id === tenantObj.propertyId) : [];
+    }
+    
+    const totalRentDue = relevantProperties.reduce((sum, p) => sum + (p.rent || 0), 0);
+    
+    const paidThisMonth = payments
+      .filter(p => p.rentMonth === currentMonthStr)
+      .filter(p => relevantProperties.some(rp => rp.id === p.propertyId))
+      .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+
+    return {
+      month: currentMonthStr,
+      expected: totalRentDue,
+      received: paidThisMonth,
+      missingAmount: Math.max(totalRentDue - paidThisMonth, 0),
+    };
+  }, [payments, properties, tenants, selectedTenant]);
+
   // Aggregate data calculation
   const aggregateData = useMemo((): MonthlyPaymentData[] => {
     const propertyMap = new Map<string, MonthlyPaymentData>();
 
-    // Initialize all properties
     properties.forEach(property => {
       const monthlyData: { [month: string]: { paid: number; expected: number; status: 'paid' | 'partial' | 'missing' } } = {};
       
@@ -60,21 +129,24 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         monthlyData[month] = { paid: 0, expected: 0, status: 'missing' };
       });
 
+      const tenantNames = tenants
+        .filter(tenant => tenant.propertyId === property.id)
+        .map(tenant => tenant.name);
+
       propertyMap.set(property.id, {
         propertyId: property.id,
         propertyAddress: property.address,
+        tenantNames,
         monthlyData,
         totalPaid: 0,
         totalExpected: 0
       });
     });
 
-    // Process payments for current year
     payments.forEach(payment => {
       const property = propertyMap.get(payment.propertyId);
       if (!property) return;
 
-      // Extract month from rentMonth (e.g., "January 2024")
       const [monthName, year] = payment.rentMonth.split(' ');
       if (parseInt(year) !== currentYear) return;
 
@@ -83,7 +155,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         monthData.paid += payment.amountPaid || 0;
         monthData.expected += payment.amount || 0;
         
-        // Determine status
         if (monthData.paid === 0) {
           monthData.status = 'missing';
         } else if (monthData.paid >= monthData.expected) {
@@ -100,11 +171,11 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     return Array.from(propertyMap.values()).sort((a, b) => 
       a.propertyAddress.localeCompare(b.propertyAddress)
     );
-  }, [properties, payments, currentYear, months]);
+  }, [properties, payments, tenants, currentYear, months]);
 
-  // Filter and sort payments for main view
+  // Filter and sort payments
   const filteredAndSortedPayments = useMemo(() => {
-    return payments
+    const filtered = payments
       .filter(payment => {
         const property = properties.find(p => p.id === payment.propertyId);
         const tenant = tenants.find(t => t.id === payment.tenantId);
@@ -120,48 +191,76 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         const matchesStatus = filterStatus === 'all' || payment.status === filterStatus;
         
         return matchesSearch && matchesStatus;
-      })
-      .sort((a, b) => {
-        let aValue: string | number | Date;
-        let bValue: string | number | Date;
-
-        if (sortBy === 'property') {
-          const propA = properties.find(p => p.id === a.propertyId);
-          const propB = properties.find(p => p.id === b.propertyId);
-          aValue = propA?.address || '';
-          bValue = propB?.address || '';
-        } else if (sortBy === 'date') {
-          aValue = new Date(a.date || '1970-01-01');
-          bValue = new Date(b.date || '1970-01-01');
-        } else if (sortBy === 'amount') {
-          aValue = a.amount;
-          bValue = b.amount;
-        } else {
-          aValue = a.status;
-          bValue = b.status;
-        }
-
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          return sortOrder === 'asc' 
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
-        }
-        
-        if (aValue instanceof Date && bValue instanceof Date) {
-          return sortOrder === 'asc' 
-            ? aValue.getTime() - bValue.getTime()
-            : bValue.getTime() - aValue.getTime();
-        }
-        
-        if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-        }
-        
-        return 0;
       });
-  }, [payments, properties, tenants, searchTerm, filterStatus, sortBy, sortOrder]);
 
-  const resetForm = () => {
+    const grouped: Record<string, Payment[]> = {};
+    const orderedMonths: string[] = [];
+    
+    filtered.forEach(payment => {
+      const monthKey = payment.rentMonth || 'Unknown';
+      if (!grouped[monthKey]) {
+        grouped[monthKey] = [];
+        orderedMonths.push(monthKey);
+      }
+      grouped[monthKey].push(payment);
+    });
+
+    if (sortBy === 'rentMonth') {
+      orderedMonths.sort((a, b) => {
+        const da = parseMonth(a);
+        const db = parseMonth(b);
+        return sortOrder === 'asc' ? da.getTime() - db.getTime() : db.getTime() - da.getTime();
+      });
+    }
+
+    return { grouped, orderedMonths };
+  }, [payments, properties, tenants, searchTerm, filterStatus, sortBy, sortOrder, parseMonth]);
+
+  // Auto-update form fields when property is selected
+  useEffect(() => {
+    if (formData.propertyId && !editingPayment) {
+      // Find the selected property
+      const selectedProperty = properties.find(p => p.id === formData.propertyId);
+      if (selectedProperty) {
+        // Find tenants for this property
+        const propertyTenants = tenants.filter(t => t.propertyId === selectedProperty.id);
+        
+        // Auto-select tenant if there's exactly one, otherwise clear tenantId
+        const newTenantId = propertyTenants.length === 1 ? propertyTenants[0].id : '';
+        
+        // Get expected amount from property rent
+        const newAmount = selectedProperty.rent ? selectedProperty.rent.toString() : '';
+        
+        // Get payment method: use tenant's preferred method if available, else default to "Bank Transfer"
+        const selectedTenant = propertyTenants.find(t => t.id === newTenantId);
+        const newMethod = selectedTenant?.preferredPaymentMethod || 'Bank Transfer';
+
+        setFormData(prev => ({
+          ...prev,
+          tenantId: newTenantId,
+          amount: newAmount,
+          method: newMethod
+        }));
+      }
+    }
+  }, [formData.propertyId, properties, tenants, editingPayment]);
+
+  // Auto-update status
+  useEffect(() => {
+    const amount = parseInt(formData.amount || '0', 10);
+    const amountPaid = parseInt(formData.amountPaid || '0', 10);
+    let newStatus: Payment['status'] = 'Not Paid Yet';
+    if (amountPaid === amount && amount > 0) {
+      newStatus = 'Paid';
+    } else if (amountPaid > 0 && amountPaid < amount) {
+      newStatus = 'Partially Paid';
+    }
+    if (formData.status !== newStatus) {
+      setFormData((prev) => ({ ...prev, status: newStatus }));
+    }
+  }, [formData.amount, formData.amountPaid, formData.status]);
+
+  const resetForm = useCallback(() => {
     setFormData({
       propertyId: '',
       tenantId: '',
@@ -174,9 +273,9 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     });
     setEditingPayment(null);
     setShowForm(false);
-  };
+  }, []);
 
-  const handleEdit = (payment: Payment) => {
+  const handleEdit = useCallback((payment: Payment) => {
     setEditingPayment(payment);
     setFormData({
       propertyId: payment.propertyId,
@@ -189,21 +288,21 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       status: payment.status
     });
     setShowForm(true);
-  };
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     
     const paymentData = {
       propertyId: formData.propertyId,
       tenantId: formData.tenantId,
-      amount: parseInt(formData.amount),
-      amountPaid: parseInt(formData.amountPaid),
+      amount: parseInt(formData.amount) || 0,
+      amountPaid: parseInt(formData.amountPaid) || 0,
       rentMonth: formData.rentMonth,
       date: formData.date,
       method: formData.method,
       status: formData.status
-    };
+    };    
 
     if (editingPayment) {
       updatePayment(editingPayment.id, paymentData);
@@ -212,19 +311,20 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     }
     
     resetForm();
-  };
+  }, [formData, editingPayment, addPayment, updatePayment, resetForm]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     if (confirm('Are you sure you want to delete this payment record?')) {
       deletePayment(id);
     }
-  };
+  }, [deletePayment]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Paid': return 'bg-green-100 text-green-800';
       case 'Partially Paid': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-red-100 text-red-800';
+      case 'Not Paid Yet': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -243,10 +343,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       maximumFractionDigits: 0,
     }).format(amount);
   };
-
-  // Payment generation handlers
-  const occupiedPropertiesCount = properties.filter(p => p.status === 'occupied').length;
-  const totalPropertiesCount = properties.length;
 
   return (
     <div className="p-6">
@@ -285,6 +381,69 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         </div>
       </div>
 
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Current Month Rent Status</h3>
+            <select
+              value={selectedTenant}
+              onChange={(e) => setSelectedTenant(e.target.value)}
+              className="px-2 py-1 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Tenants</option>
+              {tenants.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <RadialBarChart
+              innerRadius="40%"
+              outerRadius="100%"
+              data={[
+                { name: 'Paid', value: currentMonthData.received, fill: CHART_COLORS[0] },
+                { name: 'Remaining', value: currentMonthData.missingAmount, fill: CHART_COLORS[1] },
+              ]}
+              startAngle={90}
+              endAngle={-270}
+            >
+              <PolarAngleAxis type="number" domain={[0, currentMonthData.expected || 1]} tick={false} />
+              <RadialBar minAngle={15} background clockWise dataKey="value" />
+              <circle cx="50%" cy="50%" r="55" fill="white" />
+              <text
+                x="50%"
+                y="50%"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="text-xl font-bold fill-gray-800"
+              >
+                {currentMonthData.expected > 0
+                  ? `${Math.round((currentMonthData.received / currentMonthData.expected) * 100)}%`
+                  : '0%'}
+              </text>
+            </RadialBarChart>
+          </ResponsiveContainer>
+          <p className="mt-2 text-sm text-gray-600">
+            Collected: ${currentMonthData.received.toLocaleString()} / $
+            {currentMonthData.expected.toLocaleString()} — Missing: $
+            {currentMonthData.missingAmount.toLocaleString()}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <h3 className="text-lg font-semibold mb-4">Total Revenue by Month</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData.revenueChartData}>
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip formatter={(value) => [`$${Number(value).toLocaleString()}`, 'Revenue']} />
+              <Bar dataKey="revenue" fill={CHART_COLORS[2]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       {/* Sub-tabs */}
       <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
         <button
@@ -313,18 +472,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
 
       {activeSubTab === 'payments' ? (
         <>
-          {/* Payment Generation Section */}
-          <div className="mb-8">
-            <PaymentGeneration
-              onGenerateForMonth={(month, year, force) => dataHook.generatePaymentsForSpecificMonth(month, year, force)}
-              onGenerateRange={(startMonth, startYear, endMonth, endYear) => dataHook.generatePaymentsForRange(startMonth, startYear, endMonth, endYear)}
-              onGenerateCurrentAndNext={() => dataHook.generateCurrentAndNextMonth()}
-              onGenerateUpcoming={(monthsAhead) => dataHook.generateUpcomingMonths(monthsAhead)}
-              occupiedPropertiesCount={occupiedPropertiesCount}
-              totalPropertiesCount={totalPropertiesCount}
-            />
-          </div>
-
           {/* Filter Controls */}
           <div className="mb-6 flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
@@ -359,6 +506,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                 <option value="amount">Sort by Amount</option>
                 <option value="status">Sort by Status</option>
                 <option value="property">Sort by Property</option>
+                <option value="rentMonth">Sort by Rent Month</option>
               </select>
               <button
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
@@ -372,7 +520,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
           {/* Payments List */}
           {viewMode === 'card' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredAndSortedPayments.map((payment) => {
+              {Object.values(filteredAndSortedPayments.grouped).flat().map((payment) => {
                 const property = properties.find(p => p.id === payment.propertyId);
                 const tenant = tenants.find(t => t.id === payment.tenantId);
                 
@@ -458,55 +606,88 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredAndSortedPayments.map((payment) => {
-                      const property = properties.find(p => p.id === payment.propertyId);
-                      const tenant = tenants.find(t => t.id === payment.tenantId);
+                    {filteredAndSortedPayments.orderedMonths.map((month) => {
+                      let monthPayments = filteredAndSortedPayments.grouped[month];
+                      const isExpanded = expandedMonths.includes(month);
                       
+                      monthPayments = monthPayments.slice().sort((a, b) => {
+                        const aProp = properties.find(p => p.id === a.propertyId)?.address || '';
+                        const bProp = properties.find(p => p.id === b.propertyId)?.address || '';
+                        return aProp.localeCompare(bProp);
+                      });
+
                       return (
-                        <tr key={payment.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {property?.address}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {tenant?.name || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {payment.rentMonth}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            ${payment.amount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            ${payment.amountPaid}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(payment.status)}`}>
-                              {payment.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {payment.method || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {payment.date ? new Date(payment.date).toLocaleDateString() : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-2">
-                              <button 
-                                onClick={() => handleEdit(payment)}
-                                className="text-blue-600 hover:text-blue-900"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button 
-                                onClick={() => handleDelete(payment.id)}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                        <React.Fragment key={month}>
+                          <tr
+                            onClick={() =>
+                              setExpandedMonths(prev =>
+                                prev.includes(month)
+                                  ? prev.filter(m => m !== month)
+                                  : [...prev, month]
+                              )
+                            }
+                            className="cursor-pointer bg-gray-100 hover:bg-gray-200"
+                          >
+                            <td colSpan={9} className="px-6 py-3 text-sm font-semibold text-gray-700">
+                              {month} ({monthPayments.length} payments)
+                              <span className="ml-2 text-gray-500">
+                                {isExpanded ? '▲' : '▼'}
+                              </span>
+                            </td>
+                          </tr>
+                          {isExpanded &&
+                            monthPayments.map((payment) => {
+                              const property = properties.find(p => p.id === payment.propertyId);
+                              const tenant = tenants.find(t => t.id === payment.tenantId);
+                              
+                              return (
+                                <tr key={payment.id} className="hover:bg-gray-50">
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {property?.address}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {tenant?.name || '-'}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {payment.rentMonth}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    ${payment.amount}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    ${payment.amountPaid}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(payment.status)}`}>
+                                      {payment.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {payment.method || '-'}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {payment.date ? new Date(payment.date).toLocaleDateString() : '-'}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <div className="flex space-x-2">
+                                      <button 
+                                        onClick={() => handleEdit(payment)}
+                                        className="text-blue-600 hover:text-blue-900"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDelete(payment.id)}
+                                        className="text-red-600 hover:text-red-900"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
@@ -515,7 +696,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
             </div>
           )}
 
-          {filteredAndSortedPayments.length === 0 && (
+          {filteredAndSortedPayments.orderedMonths.length === 0 && (
             <div className="text-center py-12">
               <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No payments found</h3>
@@ -601,6 +782,9 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
                       Property
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tenant(s)
+                    </th>
                     {months.map(month => (
                       <th key={month} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
                         {month.slice(0, 3)}
@@ -620,6 +804,11 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10 border-r border-gray-200">
                         <div className="max-w-xs truncate" title={propertyData.propertyAddress}>
                           {propertyData.propertyAddress}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <div className="max-w-xs truncate" title={propertyData.tenantNames.join(', ')}>
+                          {propertyData.tenantNames.length > 0 ? propertyData.tenantNames.join(', ') : '-'}
                         </div>
                       </td>
                       {months.map(month => {
@@ -709,6 +898,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                       value={formData.tenantId}
                       onChange={(e) => setFormData({ ...formData, tenantId: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!formData.propertyId || tenants.filter(t => t.propertyId === formData.propertyId).length === 0}
                     >
                       <option value="">Select Tenant</option>
                       {tenants
@@ -780,6 +970,18 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Bank Transfer, Cash, etc."
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <div className="mt-1 p-2 bg-gray-50 rounded-lg">
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${getStatusColor(formData.status)}`}>
+                      {formData.status}
+                    </span>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Status is automatically calculated based on amounts
+                    </p>
                   </div>
                 </div>
 

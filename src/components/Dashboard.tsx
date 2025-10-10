@@ -15,8 +15,6 @@ interface DashboardProps {
   dataHook: ReturnType<typeof useData>;
 }
 
-//
-
 interface DataChange {
   id: string;
   type: 'add' | 'update' | 'delete';
@@ -28,22 +26,16 @@ interface DataChange {
   newValue?: unknown;
 }
 
-//
-
 export const Dashboard: React.FC<DashboardProps> = ({ onSync: _onSync, isSyncing: _isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
 
   // Received rent in current month
   const receivedRent = useMemo(() => {
     const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const currentMonthStr = today.toLocaleString('default', { month: 'long', year: 'numeric' });
     return payments
-      .filter(p => {
-        const paymentDate = new Date(p.date); // adjust if field is rent_month instead
-        return paymentDate >= firstDayOfMonth && paymentDate <= lastDayOfMonth;
-      })
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
+      .filter(p => p.rentMonth === currentMonthStr)
+      .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
   }, [payments]);
   
   // Filter only submitted or in-progress repairs
