@@ -66,6 +66,7 @@ const PropertyMap: React.FC<{ properties: Property[]; tenants: Tenant[]; selecte
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [geocodedProperties, setGeocodedProperties] = useState<Array<Property & {lat: number, lng: number}>>([]);
+  const markersRef = React.useRef<Map<string, any>>(new Map());
 
   // Load Leaflet dynamically
   useEffect(() => {
@@ -126,6 +127,9 @@ const PropertyMap: React.FC<{ properties: Property[]; tenants: Tenant[]; selecte
         }
       });
 
+      // Clear marker references
+      markersRef.current.clear();
+
       const geocoded = [];
       const markers = [];
 
@@ -185,6 +189,9 @@ const PropertyMap: React.FC<{ properties: Property[]; tenants: Tenant[]; selecte
             marker.bindPopup(popupContent);
             marker.addTo(mapInstance);
             markers.push(marker);
+            
+            // Store marker reference
+            markersRef.current.set(property.id, marker);
           }
         } catch (error) {
           console.error(`Failed to geocode ${property.address}:`, error);
@@ -204,6 +211,18 @@ const PropertyMap: React.FC<{ properties: Property[]; tenants: Tenant[]; selecte
 
     geocodeAndAddMarkers();
   }, [mapInstance, properties, tenants]);
+
+  // Handle selected property - zoom to it and open popup
+  useEffect(() => {
+    if (!mapInstance || !selectedProperty) return;
+    
+    const marker = markersRef.current.get(selectedProperty);
+    if (marker) {
+      const latlng = marker.getLatLng();
+      mapInstance.setView(latlng, 15, { animate: true });
+      marker.openPopup();
+    }
+  }, [mapInstance, selectedProperty]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -296,12 +315,11 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
   
   const [showForm, setShowForm] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
-  // const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'card' | 'table' | 'map'>('table');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'address' | 'city'| 'state'| 'zipcode'| 'rent' | 'status'>('address');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  // const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     address: '',
@@ -404,7 +422,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
         deleteProperty(id);
       }
     }
-  }, [properties, tenants, deleteProperty]);
+  }, [tenants, deleteProperty]);
 
   return (
     <div className="p-6">
@@ -437,17 +455,6 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
             >
               <List className="h-4 w-4" />
             </button>
-            <button
-              onClick={() => setViewMode('map')}
-              role="tab"
-              aria-selected={viewMode === 'map'}
-              aria-label="Switch to map view"
-              className={`p-2 rounded-md transition-colors ${
-                viewMode === 'map' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <MapIcon className="h-4 w-4" />
-            </button>
           </div>
           <button
             onClick={() => setShowForm(true)}
@@ -460,8 +467,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
       </div>
 
       {/* Search and Sort Controls */}
-      {viewMode !== 'map' && (
-        <div className="mb-6 flex flex-col sm:flex-row gap-4">
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <input
               type="text"
@@ -495,15 +501,9 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
             </button>
           </div>
         </div>
-      )}
 
       {/* Map View */}
-      {viewMode === 'map' ? (
-        <PropertyMap 
-          properties={properties} 
-          tenants={tenants}
-        />
-      ) : viewMode === 'card' ? (
+      {viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAndSortedProperties.map((property) => {
             const tenant = tenants.find(t => t.propertyId === property.id);
@@ -578,106 +578,122 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Property
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    City
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    State
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Zip Code
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rent
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tenant
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAndSortedProperties.map((property) => {
-                  const tenant = tenants.find(t => t.propertyId === property.id);
-                  return (
-                    <tr key={property.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="p-2 bg-blue-50 rounded-lg mr-3">
-                            <Home className="h-4 w-4 text-blue-600" />
+        <div className="space-y-6">
+          {/* Map above table */}
+          <PropertyMap 
+            properties={properties} 
+            tenants={tenants}
+            selectedProperty={selectedProperty}
+          />
+          
+          {/* Table view */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Property
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      City
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      State
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Zip Code
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Rent
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tenant
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredAndSortedProperties.map((property) => {
+                    const tenant = tenants.find(t => t.propertyId === property.id);
+                    return (
+                      <tr 
+                        key={property.id} 
+                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                          selectedProperty === property.id ? 'bg-blue-50' : ''
+                        }`}
+                        onClick={() => setSelectedProperty(property.id)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="p-2 bg-blue-50 rounded-lg mr-3">
+                              <Home className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{property.address}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{property.address}</div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {property.city}
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {property.state}
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {property.zipcode}
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          ${property.rent}/month
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                            property.status === 'occupied' ? 'bg-green-100 text-green-800' :
+                            property.status === 'vacant' ? 'bg-gray-100 text-gray-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {property.status}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {tenant ? tenant.name : '-'}
+                        </td>
+
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={() => handleEdit(property)}
+                              className="text-blue-600 hover:text-blue-900"
+                              aria-label={`Edit property at ${property.address}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(property.id)}
+                              className="text-red-600 hover:text-red-900"
+                              aria-label={`Delete property at ${property.address}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {property.city}
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {property.state}
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {property.zipcode}
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ${property.rent}/month
-                      </td>
-                      
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                          property.status === 'occupied' ? 'bg-green-100 text-green-800' :
-                          property.status === 'vacant' ? 'bg-gray-100 text-gray-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {property.status}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tenant ? tenant.name : '-'}
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleEdit(property)}
-                            className="text-blue-600 hover:text-blue-900"
-                            aria-label={`Edit property at ${property.address}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(property.id)}
-                            className="text-red-600 hover:text-red-900"
-                            aria-label={`Delete property at ${property.address}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                            </table>
+            </div>
           </div>
         </div>
       )}

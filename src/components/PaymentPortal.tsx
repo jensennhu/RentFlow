@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Search, Edit, Trash2, Grid3X3, List, BarChart3, CheckCircle, Clock, AlertCircle, X } from 'lucide-react';
+import { Plus, Calendar, DollarSign, CreditCard, AlertTriangle, TrendingUp, Search, Edit, Trash2, Grid3X3, List, BarChart3, CheckCircle, Clock, AlertCircle, X, Package } from 'lucide-react';
 import type { useData } from '../hooks/useData';
 import type { Payment } from '../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
@@ -23,13 +23,31 @@ interface ChartDataPoint {
   date?: Date;
 }
 
+interface BulkRecord {
+  propertyId: string;
+  propertyAddress: string;
+  tenantId: string;
+  tenantName: string;
+  expected: number;
+  amountPaid: number;
+  status: Payment['status'];
+  date: string;
+}
+
 const CHART_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const { properties, tenants, payments, addPayment, updatePayment, deletePayment } = dataHook;
   
   const [activeSubTab, setActiveSubTab] = useState<'payments' | 'aggregate'>('payments');
   const [showForm, setShowForm] = useState(false);
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkStep, setBulkStep] = useState<'configure' | 'preview'>('configure');
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,29 +55,29 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'status' | 'property'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<string>("all");
-  const [formData, setFormData] = useState({
+  const [selectedProperty, setSelectedProperty] = useState<string>("all");  const [formData, setFormData] = useState({
     propertyId: '',
     tenantId: '',
     amount: '',
     amountPaid: '',
     rentMonth: '',
     date: '',
-    method: '',
     status: 'Not Paid Yet' as const
   });
 
-  // Current year months for aggregate view
-  const currentYear = new Date().getFullYear();
-  const months = useMemo(
-    () => [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ],
-    []
-  );
+  const [bulkConfig, setBulkConfig] = useState({
+    month: '',
+    year: new Date().getFullYear().toString(),
+    paidMode: 'unpaid' as 'unpaid' | 'paid' | 'custom',
+    customAmountPaid: '',
+    date: ''
+  });
 
-  // Enhanced month parsing
+  const [bulkRecords, setBulkRecords] = useState<BulkRecord[]>([]);
+  const [editingBulkIndex, setEditingBulkIndex] = useState<number | null>(null);
+
+  const currentYear = new Date().getFullYear();
+
   const parseMonth = useCallback((monthStr: string): Date => {
     const formats = [
       monthStr + " 1",
@@ -73,11 +91,10 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     return new Date(0);
   }, []);
 
-  // Chart data calculations
   const chartData = useMemo(() => {
     const revenueByMonth = payments.reduce((acc: Record<string, number>, p) => {
       const month = p.rentMonth || "Unknown";
-      acc[month] = (acc[month] || 0) + p.amountPaid;
+      acc[month] = (acc[month] || 0) + (p.amountPaid || 0);
       return acc;
     }, {});
     
@@ -96,36 +113,35 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
   const currentMonthData = useMemo(() => {
     const now = new Date();
     const currentMonthStr = now.toLocaleString('default', { month: 'long', year: 'numeric' });
-    
+  
     let relevantProperties = properties.filter(p => p.status === 'occupied');
-    if (selectedTenant !== 'all') {
-      const tenantObj = tenants.find(t => t.id === selectedTenant);
-      relevantProperties = tenantObj ? relevantProperties.filter(p => p.id === tenantObj.propertyId) : [];
+    if (selectedProperty !== 'all') {
+      relevantProperties = relevantProperties.filter(p => p.id === selectedProperty);
     }
-    
+  
     const totalRentDue = relevantProperties.reduce((sum, p) => sum + (p.rent || 0), 0);
-    
+  
     const paidThisMonth = payments
       .filter(p => p.rentMonth === currentMonthStr)
       .filter(p => relevantProperties.some(rp => rp.id === p.propertyId))
       .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-
+  
     return {
       month: currentMonthStr,
       expected: totalRentDue,
       received: paidThisMonth,
       missingAmount: Math.max(totalRentDue - paidThisMonth, 0),
     };
-  }, [payments, properties, tenants, selectedTenant]);
+  }, [payments, properties, selectedProperty]);
+  
 
-  // Aggregate data calculation
   const aggregateData = useMemo((): MonthlyPaymentData[] => {
     const propertyMap = new Map<string, MonthlyPaymentData>();
 
     properties.forEach(property => {
       const monthlyData: { [month: string]: { paid: number; expected: number; status: 'paid' | 'partial' | 'missing' } } = {};
       
-      months.forEach(month => {
+      MONTHS.forEach(month => {
         monthlyData[month] = { paid: 0, expected: 0, status: 'missing' };
       });
 
@@ -168,34 +184,61 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       }
     });
 
-    return Array.from(propertyMap.values()).sort((a, b) => 
-      a.propertyAddress.localeCompare(b.propertyAddress)
+    return Array.from(propertyMap.values()).sort((a, property) => 
+      a.propertyAddress.localeCompare(property.propertyAddress)
     );
-  }, [properties, payments, tenants, currentYear, months]);
+  }, [properties, payments, tenants, currentYear]);
 
-  // Filter and sort payments
+  // FILTER + RECALCULATE STATUS
   const filteredAndSortedPayments = useMemo(() => {
+    // Step 1: Group total payments per tenant per month per property
+    const tenantMonthTotals = payments.reduce((acc, p) => {
+      const key = `${p.tenantId || 'noTenant'}-${p.propertyId}-${p.rentMonth}`;
+      if (!acc[key]) acc[key] = 0;
+      acc[key] += p.amountPaid || 0;
+      return acc;
+    }, {} as Record<string, number>);
+  
     const filtered = payments
+      .map(payment => {
+        const key = `${payment.tenantId || 'noTenant'}-${payment.propertyId}-${payment.rentMonth}`;
+        const totalPaid = tenantMonthTotals[key] || 0;
+  
+        // Get expected rent from property data (not from payment record)
+        const property = properties.find(p => p.id === payment.propertyId);
+        const expectedRent = property?.rent || payment.amount || 0;
+  
+        // Determine aggregate-based status
+        let status: Payment['status'] = 'Not Paid Yet';
+        if (totalPaid >= expectedRent && expectedRent > 0) {
+          status = 'Paid';
+        } else if (totalPaid > 0 && totalPaid < expectedRent) {
+          status = 'Partially Paid';
+        }
+  
+        // Ensure tenant name (with fallback)
+        const tenant =
+          tenants.find(t => t.id === payment.tenantId) ||
+          tenants.find(t => t.propertyId === payment.propertyId);
+        const tenantName = tenant?.name || '—';
+  
+        return { ...payment, status, tenantName };
+      })
       .filter(payment => {
         const property = properties.find(p => p.id === payment.propertyId);
-        const tenant = tenants.find(t => t.id === payment.tenantId);
-        
-        const matchesSearch = (
+        const matchesSearch =
           payment.rentMonth.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (property?.address.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-          (tenant?.name.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-          payment.method?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          payment.status.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        
+          (payment.tenantName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          payment.status.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = filterStatus === 'all' || payment.status === filterStatus;
-        
         return matchesSearch && matchesStatus;
       });
-
-    const grouped: Record<string, Payment[]> = {};
+  
+    // Step 2: Group by month for display
+    const grouped: Record<string, typeof filtered> = {};
     const orderedMonths: string[] = [];
-    
+  
     filtered.forEach(payment => {
       const monthKey = payment.rentMonth || 'Unknown';
       if (!grouped[monthKey]) {
@@ -204,7 +247,8 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       }
       grouped[monthKey].push(payment);
     });
-
+  
+    // Step 3: Sort month order
     if (sortBy === 'rentMonth') {
       orderedMonths.sort((a, b) => {
         const da = parseMonth(a);
@@ -212,40 +256,41 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         return sortOrder === 'asc' ? da.getTime() - db.getTime() : db.getTime() - da.getTime();
       });
     }
-
+  
     return { grouped, orderedMonths };
   }, [payments, properties, tenants, searchTerm, filterStatus, sortBy, sortOrder, parseMonth]);
+  
+  
 
-  // Auto-update form fields when property is selected
+  // AUTO-FILL amount from property rent
   useEffect(() => {
     if (formData.propertyId && !editingPayment) {
-      // Find the selected property
       const selectedProperty = properties.find(p => p.id === formData.propertyId);
-      if (selectedProperty) {
-        // Find tenants for this property
-        const propertyTenants = tenants.filter(t => t.propertyId === selectedProperty.id);
-        
-        // Auto-select tenant if there's exactly one, otherwise clear tenantId
-        const newTenantId = propertyTenants.length === 1 ? propertyTenants[0].id : '';
-        
-        // Get expected amount from property rent
-        const newAmount = selectedProperty.rent ? selectedProperty.rent.toString() : '';
-        
-        // Get payment method: use tenant's preferred method if available, else default to "Bank Transfer"
-        const selectedTenant = propertyTenants.find(t => t.id === newTenantId);
-        const newMethod = selectedTenant?.preferredPaymentMethod || 'Bank Transfer';
+      if (!selectedProperty) return;
 
+      const propertyTenants = tenants.filter(t => t.propertyId === selectedProperty.id);
+      if (propertyTenants.length === 0) {
         setFormData(prev => ({
           ...prev,
-          tenantId: newTenantId,
-          amount: newAmount,
-          method: newMethod
+          tenantId: '',
+          amount: selectedProperty.rent?.toString() || ''
         }));
+        return;
       }
+
+      const primaryTenant = propertyTenants[0];
+      const newTenantId = propertyTenants.length === 1 ? primaryTenant.id : '';
+      const newAmount = selectedProperty.rent?.toString() || '';
+
+      setFormData(prev => ({
+        ...prev,
+        tenantId: newTenantId,
+        amount: newAmount
+      }));
     }
   }, [formData.propertyId, properties, tenants, editingPayment]);
 
-  // Auto-update status
+  // Auto-update status in form
   useEffect(() => {
     const amount = parseInt(formData.amount || '0', 10);
     const amountPaid = parseInt(formData.amountPaid || '0', 10);
@@ -268,11 +313,24 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       amountPaid: '',
       rentMonth: '',
       date: '',
-      method: '',
       status: 'Not Paid Yet'
     });
     setEditingPayment(null);
     setShowForm(false);
+  }, []);
+
+  const resetBulkForm = useCallback(() => {
+    setBulkConfig({
+      month: '',
+      year: new Date().getFullYear().toString(),
+      paidMode: 'unpaid',
+      customAmountPaid: '',
+      date: ''
+    });
+    setBulkRecords([]);
+    setBulkStep('configure');
+    setEditingBulkIndex(null);
+    setShowBulkForm(false);
   }, []);
 
   const handleEdit = useCallback((payment: Payment) => {
@@ -284,7 +342,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       amountPaid: payment.amountPaid.toString(),
       rentMonth: payment.rentMonth,
       date: payment.date || '',
-      method: payment.method || '',
       status: payment.status
     });
     setShowForm(true);
@@ -300,7 +357,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       amountPaid: parseInt(formData.amountPaid) || 0,
       rentMonth: formData.rentMonth,
       date: formData.date,
-      method: formData.method,
       status: formData.status
     };    
 
@@ -344,6 +400,93 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     }).format(amount);
   };
 
+  // Bulk: Generate preview records
+  const generateBulkPreview = useCallback(() => {
+    if (!bulkConfig.month || !bulkConfig.year) return;
+
+    const rentMonth = `${bulkConfig.month} ${bulkConfig.year}`;
+    const targetProperties = properties.filter(p =>
+      p.status === 'occupied' &&
+      tenants.some(t => t.propertyId === p.id) &&
+      !payments.some(pay => pay.propertyId === p.id && pay.rentMonth === rentMonth)
+    );
+
+    const records: BulkRecord[] = [];
+
+    for (const property of targetProperties) {
+      const propertyTenants = tenants.filter(t => t.propertyId === property.id);
+      if (propertyTenants.length === 0) continue;
+
+      const primaryTenant = propertyTenants[0];
+      const expected = property.rent || 0;
+
+      let amountPaid = 0;
+      if (bulkConfig.paidMode === 'paid') {
+        amountPaid = expected;
+      } else if (bulkConfig.paidMode === 'custom') {
+        amountPaid = parseInt(bulkConfig.customAmountPaid) || 0;
+      }
+
+      const status: Payment['status'] =
+        amountPaid >= expected ? 'Paid' :
+        amountPaid > 0 ? 'Partially Paid' : 'Not Paid Yet';
+
+      records.push({
+        propertyId: property.id,
+        propertyAddress: property.address,
+        tenantId: primaryTenant.id,
+        tenantName: primaryTenant.name,
+        expected,
+        amountPaid,
+        status,
+        date: bulkConfig.date,
+      });
+    }
+
+    setBulkRecords(records);
+    setBulkStep('preview');
+  }, [bulkConfig, properties, tenants, payments]);
+
+  // Bulk: Update individual record
+  const updateBulkRecord = useCallback((index: number, field: keyof BulkRecord, value: string | number) => {
+    setBulkRecords(prev => {
+      const updated = [...prev];
+      const record = { ...updated[index] };
+      
+      if (field === 'amountPaid') {
+        const amountPaid = parseInt(value as string) || 0;
+        record.amountPaid = amountPaid;
+        record.status = amountPaid >= record.expected ? 'Paid' : (amountPaid > 0 ? 'Partially Paid' : 'Not Paid Yet');
+      } else {
+        (record[field] as any) = value;
+      }
+
+      updated[index] = record;
+      return updated;
+    });
+  }, []);
+
+  // Bulk: Final generation
+  const handleBulkGenerate = useCallback(() => {
+    const rentMonth = `${bulkConfig.month} ${bulkConfig.year}`;
+
+    bulkRecords.forEach(record => {
+      const paymentData = {
+        propertyId: record.propertyId,
+        tenantId: record.tenantId,
+        amount: record.expected,
+        amountPaid: record.amountPaid,
+        rentMonth,
+        date: record.date,
+        status: record.status
+      };
+
+      addPayment(paymentData);
+    });
+
+    resetBulkForm();
+  }, [bulkRecords, bulkConfig, addPayment, resetBulkForm]);
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -378,6 +521,13 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
             <Plus className="h-4 w-4 mr-2" />
             Add Payment
           </button>
+          <button
+            onClick={() => setShowBulkForm(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Bulk Generate
+          </button>
         </div>
       </div>
 
@@ -387,15 +537,16 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Current Month Rent Status</h3>
             <select
-              value={selectedTenant}
-              onChange={(e) => setSelectedTenant(e.target.value)}
+              value={selectedProperty}
+              onChange={(e) => setSelectedProperty(e.target.value)}
               className="px-2 py-1 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="all">All Tenants</option>
-              {tenants.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              <option value="all">All Properties</option>
+              {properties.map(p => (
+                <option key={p.id} value={p.id}>{p.address}</option>
               ))}
             </select>
+
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <RadialBarChart
@@ -512,7 +663,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                 className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                {sortOrder === 'asc' ? '↑' : '↓'}
+                {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
               </button>
             </div>
           </div>
@@ -522,7 +673,8 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {Object.values(filteredAndSortedPayments.grouped).flat().map((payment) => {
                 const property = properties.find(p => p.id === payment.propertyId);
-                const tenant = tenants.find(t => t.id === payment.tenantId);
+                const tenant = tenants.find(t => t.id === payment.tenantId)
+  || tenants.find(t => t.propertyId === payment.propertyId);
                 
                 return (
                   <div key={payment.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
@@ -554,12 +706,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Tenant:</span>
                           <span className="font-medium">{tenant.name}</span>
-                        </div>
-                      )}
-                      {payment.method && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Method:</span>
-                          <span className="font-medium">{payment.method}</span>
                         </div>
                       )}
                       {payment.date && (
@@ -600,7 +746,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expected</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -628,17 +773,18 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                             }
                             className="cursor-pointer bg-gray-100 hover:bg-gray-200"
                           >
-                            <td colSpan={9} className="px-6 py-3 text-sm font-semibold text-gray-700">
+                            <td colSpan={8} className="px-6 py-3 text-sm font-semibold text-gray-700">
                               {month} ({monthPayments.length} payments)
                               <span className="ml-2 text-gray-500">
-                                {isExpanded ? '▲' : '▼'}
+                                {isExpanded ? 'Collapse' : 'Expand'}
                               </span>
                             </td>
                           </tr>
                           {isExpanded &&
                             monthPayments.map((payment) => {
                               const property = properties.find(p => p.id === payment.propertyId);
-                              const tenant = tenants.find(t => t.id === payment.tenantId);
+                              const tenant = tenants.find(t => t.id === payment.tenantId)
+  || tenants.find(t => t.propertyId === payment.propertyId);
                               
                               return (
                                 <tr key={payment.id} className="hover:bg-gray-50">
@@ -661,9 +807,6 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(payment.status)}`}>
                                       {payment.status}
                                     </span>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {payment.method || '-'}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {payment.date ? new Date(payment.date).toLocaleDateString() : '-'}
@@ -785,7 +928,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Tenant(s)
                     </th>
-                    {months.map(month => (
+                    {MONTHS.map(month => (
                       <th key={month} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
                         {month.slice(0, 3)}
                       </th>
@@ -811,7 +954,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                           {propertyData.tenantNames.length > 0 ? propertyData.tenantNames.join(', ') : '-'}
                         </div>
                       </td>
-                      {months.map(month => {
+                      {MONTHS.map(month => {
                         const monthData = propertyData.monthlyData[month];
                         return (
                           <td key={month} className={`px-4 py-4 text-center text-sm border ${getCellColor(monthData.status, monthData.paid)}`}>
@@ -950,27 +1093,14 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Date</label>
-                    <input
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                    <input
-                      type="text"
-                      value={formData.method}
-                      onChange={(e) => setFormData({ ...formData, method: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Bank Transfer, Cash, etc."
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Date</label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
 
                 <div>
@@ -1001,6 +1131,252 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Generate Modal */}
+      {showBulkForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {bulkStep === 'configure' ? 'Bulk Generate Payment Records' : 'Preview & Edit Records'}
+                </h3>
+                <button
+                  onClick={resetBulkForm}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {bulkStep === 'configure' ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Configure base settings.
+                  </p>
+                  
+                  <form onSubmit={(e) => { e.preventDefault(); generateBulkPreview(); }} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Month</label>
+                        <select
+                          required
+                          value={bulkConfig.month}
+                          onChange={(e) => setBulkConfig({ ...bulkConfig, month: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Select Month</option>
+                          {MONTHS.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                        <input
+                          type="number"
+                          required
+                          min="2000"
+                          max="2100"
+                          value={bulkConfig.year}
+                          onChange={(e) => setBulkConfig({ ...bulkConfig, year: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Paid Mode Selector */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Default Payment Amount</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setBulkConfig(prev => ({ ...prev, paidMode: 'unpaid', customAmountPaid: '' }))}
+                          className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                            bulkConfig.paidMode === 'unpaid'
+                              ? 'bg-red-600 text-white'
+                              : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                          }`}
+                        >
+                          All Unpaid (0)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setBulkConfig(prev => ({ ...prev, paidMode: 'paid', customAmountPaid: '' }))}
+                          className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                            bulkConfig.paidMode === 'paid'
+                              ? 'bg-green-600 text-white'
+                              : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                          }`}
+                        >
+                          All Paid (rent amount)
+                        </button>
+                      </div>
+
+                      {bulkConfig.paidMode === 'custom' && (
+                        <div className="mt-3">
+                          <input
+                            type="number"
+                            placeholder="Enter custom amount"
+                            value={bulkConfig.customAmountPaid}
+                            onChange={(e) => setBulkConfig(prev => ({ ...prev, customAmountPaid: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      )}
+
+                      {bulkConfig.paidMode !== 'custom' && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkConfig(prev => ({ ...prev, paidMode: 'custom' }))}
+                          className="mt-2 text-sm text-blue-600 hover:underline"
+                        >
+                          Or set a custom amount for all
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Payment Date (optional)</label>
+                      <input
+                        type="date"
+                        value={bulkConfig.date}
+                        onChange={(e) => setBulkConfig({ ...bulkConfig, date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="flex space-x-3 pt-4">
+                      <button
+                        type="submit"
+                        className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Generate Preview ({properties.filter(p => p.status === 'occupied' && tenants.some(t => t.propertyId === p.id)).length} properties)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetBulkForm}
+                        className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Review and edit individual records before generating.
+                  </p>
+
+                  <div className="mb-4 text-sm text-gray-600">
+                    <strong>{bulkRecords.length}</strong> records to be created for <strong>{bulkConfig.month} {bulkConfig.year}</strong>
+                  </div>
+
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expected</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {bulkRecords.map((record, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate" title={record.propertyAddress}>
+                              {record.propertyAddress}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {record.tenantName}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              ${record.expected}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {editingBulkIndex === index ? (
+                                <input
+                                  type="number"
+                                  value={record.amountPaid}
+                                  onChange={(e) => updateBulkRecord(index, 'amountPaid', e.target.value)}
+                                  className="w-20 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                                  autoFocus
+                                  onBlur={() => setEditingBulkIndex(null)}
+                                  onKeyDown={(e) => e.key === 'Enter' && setEditingBulkIndex(null)}
+                                />
+                              ) : (
+                                <span className="font-medium">${record.amountPaid}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
+                                {record.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {editingBulkIndex === index ? (
+                                <input
+                                  type="date"
+                                  value={record.date}
+                                  onChange={(e) => updateBulkRecord(index, 'date', e.target.value)}
+                                  className="w-32 px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                                  onBlur={() => setEditingBulkIndex(null)}
+                                />
+                              ) : (
+                                record.date ? new Date(record.date).toLocaleDateString() : '-'
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {editingBulkIndex === index ? (
+                                <button
+                                  onClick={() => setEditingBulkIndex(null)}
+                                  className="text-green-600 hover:text-green-800"
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setEditingBulkIndex(index)}
+                                  className="text-blue-600 hover:text-blue-800"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex space-x-3 pt-4">
+                    <button
+                      onClick={() => setBulkStep('configure')}
+                      className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      Back to Configuration
+                    </button>
+                    <button
+                      onClick={handleBulkGenerate}
+                      disabled={bulkRecords.length === 0}
+                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Generate {bulkRecords.length} Records
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

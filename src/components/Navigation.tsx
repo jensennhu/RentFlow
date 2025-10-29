@@ -1,42 +1,46 @@
+// src/components/Navigation.tsx
 import React from 'react';
-import { LayoutDashboard, Home, Users, CreditCard, Wrench } from 'lucide-react';
+import { LayoutDashboard, Home, Users, DollarSign, Wrench } from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  isExpanded: boolean;
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
-  const tabs = [
+export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange, isExpanded }) => {
+  const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'properties', label: 'Properties', icon: Home },
     { id: 'tenants', label: 'Tenants', icon: Users },
-    { id: 'payments', label: 'Payments', icon: CreditCard },
-    { id: 'repairs', label: 'Repairs', icon: Wrench }
+    { id: 'payments', label: 'Payments', icon: DollarSign },
+    { id: 'repairs', label: 'Repairs', icon: Wrench },
   ];
 
   return (
-    <nav className="bg-white shadow-sm border-r border-gray-200 h-full">
+    <nav className="h-full bg-white">
       <div className="p-4">
-        <div className="space-y-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <Icon className="h-5 w-5 mr-3" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          
+          return (
+            <button
+              key={item.id}
+              onClick={() => onTabChange(item.id)}
+              className={`w-full flex items-center px-4 py-3 mb-2 rounded-lg transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-50 text-blue-600 font-medium'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Icon className="h-5 w-5 flex-shrink-0 mr-3" />
+              <span className="whitespace-nowrap">
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

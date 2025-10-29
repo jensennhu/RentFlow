@@ -19,6 +19,7 @@ const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showSupabaseSetup, setShowSupabaseSetup] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
   const dataHook = useData();
   const isSupabaseEnabled = import.meta.env.VITE_USE_SUPABASE === 'true';
@@ -105,15 +106,29 @@ const AppContent: React.FC = () => {
         onSignOut={handleSignOut}
       />
       
-      <div className="flex h-[calc(100vh-64px)]">
-        <div className="w-64 flex-shrink-0">
+      <div className="flex h-[calc(100vh-64px)] relative">
+        {/* Hover trigger area - thin strip on the left edge */}
+        <div 
+          className="fixed left-0 top-[64px] h-[calc(100vh-64px)] w-2 bg-transparent"
+          style={{ zIndex: 9998 }}
+          onMouseEnter={() => setIsSidebarExpanded(true)}
+        />
+        
+        <div 
+          className={`fixed left-0 top-[64px] h-[calc(100vh-64px)] bg-white border-r border-gray-200 shadow-2xl transition-transform duration-300 ease-in-out ${
+            isSidebarExpanded ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          style={{ width: '256px', zIndex: 9999 }}
+          onMouseLeave={() => setIsSidebarExpanded(false)}
+        >
           <Navigation 
             activeTab={activeTab} 
-            onTabChange={setActiveTab} 
+            onTabChange={setActiveTab}
+            isExpanded={isSidebarExpanded}
           />
         </div>
         
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto w-full">
           {syncStatus && (
             <div className={`mx-6 mt-4 p-3 rounded-lg ${
               syncStatus.status === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
