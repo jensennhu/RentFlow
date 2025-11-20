@@ -292,8 +292,8 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
 
   // Auto-update status in form
   useEffect(() => {
-    const amount = parseInt(formData.amount || '0', 10);
-    const amountPaid = parseInt(formData.amountPaid || '0', 10);
+    const amount = parseFloat(formData.amount || '0', 10);
+    const amountPaid = parseFloat(formData.amountPaid || '0', 10);
     let newStatus: Payment['status'] = 'Not Paid Yet';
     if (amountPaid === amount && amount > 0) {
       newStatus = 'Paid';
@@ -347,14 +347,20 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
     setShowForm(true);
   }, []);
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    const [year, month, day] = dateString.split('-');
+    return `${month}/${day}/${year}`;
+  };
+
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     
     const paymentData = {
       propertyId: formData.propertyId,
       tenantId: formData.tenantId,
-      amount: parseInt(formData.amount) || 0,
-      amountPaid: parseInt(formData.amountPaid) || 0,
+      amount: parseFloat(formData.amount) || 0,
+      amountPaid: parseFloat(formData.amountPaid) || 0,
       rentMonth: formData.rentMonth,
       date: formData.date,
       status: formData.status
@@ -424,7 +430,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       if (bulkConfig.paidMode === 'paid') {
         amountPaid = expected;
       } else if (bulkConfig.paidMode === 'custom') {
-        amountPaid = parseInt(bulkConfig.customAmountPaid) || 0;
+        amountPaid = parseFloat(bulkConfig.customAmountPaid) || 0;
       }
 
       const status: Payment['status'] =
@@ -454,7 +460,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
       const record = { ...updated[index] };
       
       if (field === 'amountPaid') {
-        const amountPaid = parseInt(value as string) || 0;
+        const amountPaid = parseFloat(value as string) || 0;
         record.amountPaid = amountPaid;
         record.status = amountPaid >= record.expected ? 'Paid' : (amountPaid > 0 ? 'Partially Paid' : 'Not Paid Yet');
       } else {
@@ -696,11 +702,11 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                     <div className="space-y-2 mb-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Expected:</span>
-                        <span className="font-medium">${payment.amount}</span>
+                        <span className="font-medium">${payment.amount.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Paid:</span>
-                        <span className="font-medium">${payment.amountPaid}</span>
+                        <span className="font-medium">${payment.amountPaid.toFixed(2)}</span>
                       </div>
                       {tenant && (
                         <div className="flex justify-between text-sm">
@@ -711,7 +717,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                       {payment.date && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Date:</span>
-                          <span className="font-medium">{new Date(payment.date).toLocaleDateString()}</span>
+                          <span className="font-medium">{formatDate(payment.date)}</span>
                         </div>
                       )}
                     </div>
@@ -798,10 +804,10 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                                     {payment.rentMonth}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    ${payment.amount}
+                                    ${payment.amount.toFixed(2)}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    ${payment.amountPaid}
+                                    ${payment.amountPaid.toFixed(2)}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
                                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(payment.status)}`}>
@@ -809,7 +815,7 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
                                     </span>
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {payment.date ? new Date(payment.date).toLocaleDateString() : '-'}
+                                    {payment.date ? formatDate(payment.date): '-'}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div className="flex space-x-2">
