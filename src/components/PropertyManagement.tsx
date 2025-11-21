@@ -502,7 +502,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
           </div>
         </div>
 
-      {/* Map View */}
+      {/* Views */}
       {viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAndSortedProperties.map((property) => {
@@ -578,15 +578,17 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
           })}
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Map above table */}
-          <PropertyMap 
-            properties={properties} 
-            tenants={tenants}
-            selectedProperty={selectedProperty}
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Map on the left */}
+          <div className="lg:sticky lg:top-6 lg:self-start">
+            <PropertyMap 
+              properties={properties} 
+              tenants={tenants}
+              selectedProperty={selectedProperty}
+            />
+          </div>
           
-          {/* Table view */}
+          {/* Table on the right */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -692,7 +694,7 @@ export const PropertyManagement: React.FC<PropertyManagementProps> = ({ dataHook
                     );
                   })}
                 </tbody>
-                            </table>
+              </table>
             </div>
           </div>
         </div>
