@@ -1,12 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Home,
   Users,
   DollarSign,
   Wrench,
-  AlertTriangle
+  AlertTriangle,
+  Download,
+  CheckSquare
 } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
 import { useData } from '../hooks/useData';
 
 interface DashboardProps {
@@ -15,19 +16,42 @@ interface DashboardProps {
   dataHook: ReturnType<typeof useData>;
 }
 
-interface DataChange {
-  id: string;
-  type: 'add' | 'update' | 'delete';
-  table: 'properties' | 'tenants' | 'payments' | 'repairRequests';
-  current?: unknown;
-  new?: unknown;
-  field?: string;
-  oldValue?: unknown;
-  newValue?: unknown;
-}
+// CSV Export Helper Functions
+const convertToCSV = (data: any[], headers: string[]) => {
+  const csvRows = [];
+  
+  // Add headers
+  csvRows.push(headers.join(','));
+  
+  // Add data rows
+  for (const row of data) {
+    const values = headers.map(header => {
+      const value = row[header];
+      // Escape quotes and wrap in quotes if contains comma
+      const escaped = ('' + value).replace(/"/g, '""');
+      return `"${escaped}"`;
+    });
+    csvRows.push(values.join(','));
+  }
+  
+  return csvRows.join('\n');
+};
+
+const downloadCSV = (csv: string, filename: string) => {
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('hidden', '');
+  a.setAttribute('href', url);
+  a.setAttribute('download', filename);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSync: _onSync, isSyncing: _isSyncing, dataHook }) => {
   const { properties, tenants, payments, repairRequests } = dataHook;
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Received rent in current month
   const receivedRent = useMemo(() => {
@@ -75,6 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync: _onSync, isSyncing
           propertyAddress: property?.address || 'Unknown Property',
           leaseEnd: t.leaseEnd,
           status,
+          daysUntilEnd
         };
       })
       .filter(Boolean) as {
@@ -83,8 +108,176 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync: _onSync, isSyncing
         propertyAddress: string;
         leaseEnd: string;
         status: 'expiring' | 'expired';
+        daysUntilEnd: number;
       }[];
   }, [tenants, properties]);
+
+  // CSV Export Functions
+  const exportProperties = () => {
+    const data = properties.map(p => {
+      const tenant = tenants.find(t => t.propertyId === p.id);
+      return {
+        Address: p.address,
+        City: p.city,
+        State: p.state,
+        Zipcode: p.zipcode,
+        'Monthly Rent': p.rent,
+        Status: p.status,
+        'Tenant Name': tenant?.name || 'N/A',
+        'Tenant Email': tenant?.email || 'N/A',
+        'Lease Start': tenant?.leaseStart || 'N/A',
+        'Lease End': tenant?.leaseEnd || 'N/A'
+      };
+    });
+    
+    const csv = convertToCSV(data, Object.keys(data[0] || {}));
+    downloadCSV(csv, `properties-${new Date().toISOString().split('T')[0]}.csv`);
+    setShowExportMenu(false);
+  };
+
+  const exportTenants = () => {
+    const data = tenants.map(t => {
+      const property = properties.find(p => p.id === t.propertyId);
+      const today = new Date();
+      const leaseEnd = new Date(t.leaseEnd);
+      const daysUntilEnd = Math.ceil((leaseEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      return {
+        Name: t.name,
+        Email: t.email,
+        Phone: t.phone,
+        Property: property?.address || 'Unknown',
+        'Lease Start': t.leaseStart,
+        'Lease End': t.leaseEnd,
+        'Days Until Expiry': daysUntilEnd,
+        'Rent Amount': t.rentAmount || property?.rent || 0,
+        'Payment Method': t.paymentMethod || 'N/A',
+        'Lease Type': t.leaseType || 'N/A'
+      };
+    });
+    
+    const csv = convertToCSV(data, Object.keys(data[0] || {}));
+    downloadCSV(csv, `tenants-${new Date().toISOString().split('T')[0]}.csv`);
+    setShowExportMenu(false);
+  };
+
+  const exportPayments = () => {
+    const data = payments.map(p => {
+      const property = properties.find(prop => prop.id === p.propertyId);
+      const tenant = tenants.find(t => t.id === p.tenantId);
+      
+      return {
+        'Rent Month': p.rentMonth,
+        Property: property?.address || 'Unknown',
+        Tenant: tenant?.name || 'Unknown',
+        'Expected Amount': p.amount,
+        'Amount Paid': p.amountPaid,
+        'Outstanding': p.amount - p.amountPaid,
+        Status: p.status,
+        'Payment Date': p.date || 'N/A'
+      };
+    });
+    
+    const csv = convertToCSV(data, Object.keys(data[0] || {}));
+    downloadCSV(csv, `payments-${new Date().toISOString().split('T')[0]}.csv`);
+    setShowExportMenu(false);
+  };
+
+  const exportRepairs = () => {
+    const data = repairRequests.map(r => {
+      const property = properties.find(p => p.id === r.propertyId);
+      const tenant = tenants.find(t => t.id === r.tenantId);
+      
+      return {
+        Title: r.title,
+        Description: r.description,
+        Property: property?.address || 'Unknown',
+        Tenant: tenant?.name || 'Unknown',
+        Category: r.category,
+        Priority: r.priority,
+        Status: r.status,
+        'Date Submitted': r.dateSubmitted,
+        'Date Resolved': r.dateResolved || 'N/A',
+        'Close Notes': r.closeNotes || 'N/A'
+      };
+    });
+    
+    const csv = convertToCSV(data, Object.keys(data[0] || {}));
+    downloadCSV(csv, `repairs-${new Date().toISOString().split('T')[0]}.csv`);
+    setShowExportMenu(false);
+  };
+
+  const exportLeaseAlerts = () => {
+    const data = leaseAlerts.map(alert => ({
+      'Tenant Name': alert.tenantName,
+      Property: alert.propertyAddress,
+      'Lease End Date': alert.leaseEnd,
+      'Days Until Expiry': alert.daysUntilEnd,
+      Status: alert.status
+    }));
+    
+    const csv = convertToCSV(data, Object.keys(data[0] || {}));
+    downloadCSV(csv, `lease-alerts-${new Date().toISOString().split('T')[0]}.csv`);
+    setShowExportMenu(false);
+  };
+
+  const exportAllData = () => {
+    // Create a comprehensive export with all data
+    const summary = {
+      'Export Date': new Date().toISOString().split('T')[0],
+      'Total Properties': totalProperties,
+      'Occupied Properties': occupiedProperties,
+      'Vacant Properties': vacantProperties,
+      'Expected Revenue': expectedRevenue,
+      'Received Rent (Current Month)': receivedRent,
+      'Active Repairs': activeRepairs.length,
+      'Urgent Repairs': urgentRepairs,
+      'Lease Alerts': leaseAlerts.length
+    };
+    
+    let csv = '=== DASHBOARD SUMMARY ===\n';
+    csv += convertToCSV([summary], Object.keys(summary)) + '\n\n';
+    
+    csv += '=== PROPERTIES ===\n';
+    const propertiesData = properties.map(p => ({
+      Address: p.address,
+      City: p.city,
+      State: p.state,
+      Rent: p.rent,
+      Status: p.status
+    }));
+    csv += convertToCSV(propertiesData, Object.keys(propertiesData[0] || {})) + '\n\n';
+    
+    csv += '=== TENANTS ===\n';
+    const tenantsData = tenants.map(t => ({
+      Name: t.name,
+      Email: t.email,
+      Phone: t.phone,
+      LeaseEnd: t.leaseEnd
+    }));
+    csv += convertToCSV(tenantsData, Object.keys(tenantsData[0] || {})) + '\n\n';
+    
+    csv += '=== LEASE ALERTS ===\n';
+    const alertsData = leaseAlerts.map(a => ({
+      Tenant: a.tenantName,
+      Property: a.propertyAddress,
+      LeaseEnd: a.leaseEnd,
+      Status: a.status
+    }));
+    csv += convertToCSV(alertsData, Object.keys(alertsData[0] || {})) + '\n\n';
+    
+    csv += '=== ACTIVE REPAIRS ===\n';
+    const repairsData = activeRepairs.map(r => ({
+      Title: r.title,
+      Priority: r.priority,
+      Status: r.status,
+      Submitted: r.dateSubmitted
+    }));
+    csv += convertToCSV(repairsData, Object.keys(repairsData[0] || {}));
+    
+    downloadCSV(csv, `dashboard-full-export-${new Date().toISOString().split('T')[0]}.csv`);
+    setShowExportMenu(false);
+  };
 
   // Stats cards
   const stats = [
@@ -103,6 +296,86 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSync: _onSync, isSyncing
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
           <p className="text-gray-600">Manage your rental properties, tenants, payments, and repairs</p>
+        </div>
+        
+        {/* Export Button with Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Data
+          </button>
+          
+          {showExportMenu && (
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 z-10" 
+                onClick={() => setShowExportMenu(false)}
+              />
+              
+              {/* Dropdown Menu */}
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                <div className="p-2">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Export Options
+                  </div>
+                  
+                  <button
+                    onClick={exportAllData}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md flex items-center"
+                  >
+                    <CheckSquare className="h-4 w-4 mr-2 text-blue-600" />
+                    Complete Dashboard Export
+                  </button>
+                  
+                  <div className="border-t border-gray-200 my-2"></div>
+                  
+                  <button
+                    onClick={exportProperties}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md flex items-center"
+                  >
+                    <Home className="h-4 w-4 mr-2" />
+                    Properties ({properties.length})
+                  </button>
+                  
+                  <button
+                    onClick={exportTenants}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md flex items-center"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Tenants ({tenants.length})
+                  </button>
+                  
+                  <button
+                    onClick={exportPayments}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md flex items-center"
+                  >
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    Payments ({payments.length})
+                  </button>
+                  
+                  <button
+                    onClick={exportRepairs}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md flex items-center"
+                  >
+                    <Wrench className="h-4 w-4 mr-2" />
+                    Repair Requests ({repairRequests.length})
+                  </button>
+                  
+                  <button
+                    onClick={exportLeaseAlerts}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md flex items-center"
+                  >
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Lease Alerts ({leaseAlerts.length})
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

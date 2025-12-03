@@ -19,7 +19,7 @@ const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showSupabaseSetup, setShowSupabaseSetup] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true); // Changed to true by default
 
   const dataHook = useData();
   const isSupabaseEnabled = import.meta.env.VITE_USE_SUPABASE === 'true';
@@ -107,28 +107,27 @@ const AppContent: React.FC = () => {
       />
       
       <div className="flex h-[calc(100vh-64px)] relative">
-        {/* Hover trigger area - thin strip on the left edge */}
+        {/* Sidebar - always visible, just changes width */}
         <div 
-          className="fixed left-0 top-[64px] h-[calc(100vh-64px)] w-2 bg-transparent"
-          style={{ zIndex: 9998 }}
-          onMouseEnter={() => setIsSidebarExpanded(true)}
-        />
-        
-        <div 
-          className={`fixed left-0 top-[64px] h-[calc(100vh-64px)] bg-white border-r border-gray-200 shadow-2xl transition-transform duration-300 ease-in-out ${
-            isSidebarExpanded ? 'translate-x-0' : '-translate-x-full'
-          }`}
-          style={{ width: '256px', zIndex: 9999 }}
-          onMouseLeave={() => setIsSidebarExpanded(false)}
+          className={`fixed left-0 top-[64px] h-[calc(100vh-64px)] bg-white border-r border-gray-200 shadow-lg transition-all duration-300 ease-in-out`}
+          style={{ 
+            width: isSidebarExpanded ? '256px' : '80px', 
+            zIndex: 9999 
+          }}
         >
           <Navigation 
             activeTab={activeTab} 
             onTabChange={setActiveTab}
             isExpanded={isSidebarExpanded}
+            onToggleSidebar={() => setIsSidebarExpanded(!isSidebarExpanded)}
           />
         </div>
         
-        <main className="flex-1 overflow-y-auto w-full">
+        {/* Main content - shifts based on sidebar width */}
+        <main 
+          className={`flex-1 overflow-y-auto w-full transition-all duration-300 ease-in-out`}
+          style={{ marginLeft: isSidebarExpanded ? '256px' : '80px' }}
+        >
           {syncStatus && (
             <div className={`mx-6 mt-4 p-3 rounded-lg ${
               syncStatus.status === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
