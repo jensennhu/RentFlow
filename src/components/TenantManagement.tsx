@@ -140,29 +140,34 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
     setShowForm(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {  // ✅ Add async
     e.preventDefault();
     
-    const tenantData = {
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      propertyId: formData.propertyId,
-      leaseStart: formData.leaseStart,
-      leaseEnd: formData.leaseEnd,
-      rentAmount: parseInt(formData.rentAmount, 10), // ✅ radix specified
-      paymentMethod: formData.paymentMethod,
-      leaseType: formData.leaseType,
-      leaseRenewal: formData.leaseRenewal,
-    };
-
-    if (editingTenant) {
-      updateTenant(editingTenant.id, tenantData);
-    } else {
-      addTenant(tenantData);
+    try {  // ✅ Add try-catch
+      const tenantData = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        propertyId: formData.propertyId,
+        leaseStart: formData.leaseStart,
+        leaseEnd: formData.leaseEnd,
+        rentAmount: parseInt(formData.rentAmount, 10),
+        paymentMethod: formData.paymentMethod,
+        leaseType: formData.leaseType,
+        leaseRenewal: formData.leaseRenewal,
+      };
+  
+      if (editingTenant) {
+        await updateTenant(editingTenant.id, tenantData);  // ✅ Add await
+      } else {
+        await addTenant(tenantData);  // ✅ Add await
+      }
+      
+      resetForm();  // ✅ Only runs after successful save
+    } catch (error) {  // ✅ Catch and display errors
+      console.error('Error saving tenant:', error);
+      alert('Failed to save tenant. Please check the console for details.');
     }
-    
-    resetForm();
   };
 
   const handleDelete = (id: string) => {
@@ -539,15 +544,12 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                     <select
                       value={formData.paymentMethod}
                       onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value as Tenant['paymentMethod'] })}
-                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Select payment method</option>
-                      <option value="cash">Cash</option>
-                      <option value="check">Check</option>
-                      <option value="bank_transfer">Bank Transfer</option>
-                      <option value="credit_card">Credit Card</option>
-                      <option value="online_payment">Online Payment</option>
+                      <option value="Zelle">Zelle</option>
+                      <option value="Direct Deposit">Direct Deposit</option>
+                      <option value="Cash">Cash</option>
                     </select>
                   </div>
                 </div>
@@ -562,8 +564,8 @@ export const TenantManagement: React.FC<TenantManagementProps> = ({ dataHook }) 
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Select lease type</option>
-                      <option value="fixed">Fixed Term</option>
-                      <option value="month_to_month">Month-to-Month</option>
+                      <option value="Yearly">Fixed Term (Yearly)</option>
+                      <option value="Monthly">Month-to-Month</option>
                     </select>
                   </div>
                   <div>

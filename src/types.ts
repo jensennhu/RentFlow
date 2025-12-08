@@ -19,7 +19,7 @@ export interface Tenant {
   rentAmount: number;
   paymentMethod: 'Zelle' | 'Direct Deposit' | 'Cash' | '';
   leaseType: 'Yearly' | 'Monthly' | '';
-  leaseRenewal: string;
+  leaseRenewal: string | null;
 }
 
 export interface Payment {
