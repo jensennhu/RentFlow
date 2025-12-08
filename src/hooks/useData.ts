@@ -269,7 +269,7 @@ export const useData = () => {
   // -----------------------
   // Tenants CRUD
   // -----------------------
-  const addTenant = useCallback(async (tenant: Omit<Tenant, 'id' | 'leaseRenewal'>) => {
+  const addTenant = useCallback(async (tenant: Omit<Tenant, 'id'>) => {
     const leaseEndDate = new Date(tenant.leaseEnd);
     const renewalDate = new Date(
       leaseEndDate.getFullYear(),
