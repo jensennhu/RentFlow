@@ -137,18 +137,18 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
 
   const aggregateData = useMemo((): MonthlyPaymentData[] => {
     const propertyMap = new Map<string, MonthlyPaymentData>();
-
+  
     properties.forEach(property => {
       const monthlyData: { [month: string]: { paid: number; expected: number; status: 'paid' | 'partial' | 'missing' } } = {};
       
       MONTHS.forEach(month => {
         monthlyData[month] = { paid: 0, expected: 0, status: 'missing' };
       });
-
+  
       const tenantNames = tenants
         .filter(tenant => tenant.propertyId === property.id)
         .map(tenant => tenant.name);
-
+  
       propertyMap.set(property.id, {
         propertyId: property.id,
         propertyAddress: property.address,
@@ -158,19 +158,33 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         totalExpected: 0
       });
     });
-
+  
+    // ✅ NEW: Track which property+month combinations we've seen
+    const monthsWithExpectedSet = new Set<string>();
+  
     payments.forEach(payment => {
-      const property = propertyMap.get(payment.propertyId);
-      if (!property) return;
-
+      const propertyData = propertyMap.get(payment.propertyId);
+      if (!propertyData) return;
+  
       const [monthName, year] = payment.rentMonth.split(' ');
       if (parseInt(year) !== currentYear) return;
-
-      const monthData = property.monthlyData[monthName];
+  
+      const monthData = propertyData.monthlyData[monthName];
       if (monthData) {
+        // ✅ Always accumulate paid amounts
         monthData.paid += payment.amountPaid || 0;
-        monthData.expected += payment.amount || 0;
         
+        // ✅ Set expected value ONCE per property+month using payment.amount
+        const propertyMonthKey = `${payment.propertyId}-${monthName}`;
+        if (!monthsWithExpectedSet.has(propertyMonthKey)) {
+          monthData.expected = payment.amount || 0;
+          monthsWithExpectedSet.add(propertyMonthKey);
+          
+          // ✅ Add to total expected only once per property per month
+          propertyData.totalExpected += monthData.expected;
+        }
+        
+        // Status calculation remains the same
         if (monthData.paid === 0) {
           monthData.status = 'missing';
         } else if (monthData.paid >= monthData.expected) {
@@ -178,14 +192,14 @@ export const PaymentPortal: React.FC<PaymentPortalProps> = ({ dataHook }) => {
         } else {
           monthData.status = 'partial';
         }
-
-        property.totalPaid += payment.amountPaid || 0;
-        property.totalExpected += payment.amount || 0;
+  
+        // ✅ Total paid still accumulates normally
+        propertyData.totalPaid += payment.amountPaid || 0;
       }
     });
-
-    return Array.from(propertyMap.values()).sort((a, property) => 
-      a.propertyAddress.localeCompare(property.propertyAddress)
+  
+    return Array.from(propertyMap.values()).sort((a, b) => 
+      a.propertyAddress.localeCompare(b.propertyAddress)
     );
   }, [properties, payments, tenants, currentYear]);
 
