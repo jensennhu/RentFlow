@@ -1,7 +1,7 @@
 // src/components/ExpenseManagement.tsx
 import React, { useState, useMemo } from 'react';
 import { Plus, Calendar, DollarSign, Home, Grid3X3, List, Edit, Trash2, Search, Receipt, TrendingDown } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Cell, Legend } from 'recharts';
 import type { Expense } from '../types';
 import type { useData } from '../hooks/useData';
 
@@ -12,8 +12,9 @@ interface ExpenseManagementProps {
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 
 export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }) => {
-  const { expenses, properties, addExpense, updateExpense, deleteExpense } = dataHook;
+  const { expenses, properties, payments, addExpense, updateExpense, deleteExpense } = dataHook;
   
+  const [activeSubTab, setActiveSubTab] = useState<'expenses' | 'aggregate'>('expenses');
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'datePaid' | 'amount' | 'vendor' | 'category'>('datePaid');
@@ -119,7 +120,7 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
       });
   }, [expenses, properties, searchTerm, sortBy, sortOrder, filterProperty, filterCategory, filterDateRange]);
 
-  // Calculate summary statistics
+  // Calculate summary statistics (using filtered expenses for display)
   const summaryStats = useMemo(() => {
     const total = filteredAndSortedExpenses.reduce((sum, e) => sum + e.amount, 0);
     const byCategory = filteredAndSortedExpenses.reduce((acc, e) => {
@@ -134,11 +135,11 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
       return acc;
     }, {} as Record<string, number>);
 
-    // Monthly expenses for the current year
+    // Monthly expenses for the current year (using ALL expenses for consistency with aggregate view)
     const currentYear = new Date().getFullYear();
     const monthlyExpenses = Array.from({ length: 12 }, (_, i) => {
       const month = new Date(currentYear, i).toLocaleString('default', { month: 'short' });
-      const total = filteredAndSortedExpenses
+      const total = expenses // Changed from filteredAndSortedExpenses to expenses
         .filter(e => {
           const date = new Date(e.datePaid);
           return date.getFullYear() === currentYear && date.getMonth() === i;
@@ -155,7 +156,61 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
       byProperty: Object.entries(byProperty).map(([name, value]) => ({ name, value })),
       monthlyExpenses
     };
-  }, [filteredAndSortedExpenses, properties]);
+  }, [filteredAndSortedExpenses, expenses, properties]);
+
+  // Calculate aggregate income vs expenses by month
+  const aggregateData = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const monthlyData = Array.from({ length: 12 }, (_, i) => {
+      const monthName = new Date(currentYear, i).toLocaleString('default', { month: 'long' });
+      const monthShort = new Date(currentYear, i).toLocaleString('default', { month: 'short' });
+      
+      // Calculate income from payments
+      const income = payments
+        .filter(p => p.rentMonth === `${monthName} ${currentYear}`)
+        .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+      
+      // Calculate expenses
+      const expenseTotal = expenses
+        .filter(e => {
+          const date = new Date(e.datePaid);
+          return date.getFullYear() === currentYear && date.getMonth() === i;
+        })
+        .reduce((sum, e) => sum + e.amount, 0);
+      
+      const netIncome = income - expenseTotal;
+      
+      return {
+        month: monthShort,
+        monthFull: monthName,
+        income,
+        expenses: expenseTotal,
+        netIncome
+      };
+    });
+
+    const totalIncome = monthlyData.reduce((sum, m) => sum + m.income, 0);
+    const totalExpenses = monthlyData.reduce((sum, m) => sum + m.expenses, 0);
+    const totalNetIncome = totalIncome - totalExpenses;
+
+    // Get all unique expense categories and their totals
+    const categoryTotals = expenses.reduce((acc, e) => {
+      acc[e.category] = (acc[e.category] || 0) + e.amount;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const expensesByCategory = Object.entries(categoryTotals)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total); // Sort by total descending
+
+    return {
+      monthlyData,
+      totalIncome,
+      totalExpenses,
+      totalNetIncome,
+      expensesByCategory
+    };
+  }, [expenses, payments]);
 
   const resetForm = () => {
     setFormData({
@@ -254,7 +309,7 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
+              <p className="text-sm font-medium text-gray-600">Total Expenses (Filtered)</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 ${summaryStats.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
@@ -268,7 +323,7 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Records</p>
+              <p className="text-sm font-medium text-gray-600">Total Records (Filtered)</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{summaryStats.count}</p>
             </div>
             <div className="p-3 rounded-lg bg-blue-50">
@@ -280,7 +335,7 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Average Expense</p>
+              <p className="text-sm font-medium text-gray-600">Average Expense (Filtered)</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 ${summaryStats.average.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
@@ -292,6 +347,34 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
         </div>
       </div>
 
+      {/* Sub-tabs */}
+      <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveSubTab('expenses')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+            activeSubTab === 'expenses'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <List className="h-4 w-4 mr-2 inline" />
+          Expense Records
+        </button>
+        <button
+          onClick={() => setActiveSubTab('aggregate')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+            activeSubTab === 'aggregate'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <DollarSign className="h-4 w-4 mr-2 inline" />
+          Income vs Expenses
+        </button>
+      </div>
+
+      {activeSubTab === 'expenses' ? (
+        <>
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -549,6 +632,172 @@ export const ExpenseManagement: React.FC<ExpenseManagementProps> = ({ dataHook }
         <div className="text-center py-12">
           <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">No expenses found</p>
+        </div>
+      )}
+        </>
+      ) : (
+        /* Aggregate View */
+        <div className="space-y-6">
+          {/* Aggregate Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Income (Year)</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">
+                    ${aggregateData.totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-green-50">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Expenses (Year)</p>
+                  <p className="text-2xl font-bold text-red-600 mt-1">
+                    ${aggregateData.totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-red-50">
+                  <TrendingDown className="h-6 w-6 text-red-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Net Income (Year)</p>
+                  <p className={`text-2xl font-bold mt-1 ${aggregateData.totalNetIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    ${aggregateData.totalNetIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-lg ${aggregateData.totalNetIncome >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <DollarSign className={`h-6 w-6 ${aggregateData.totalNetIncome >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Breakdown Table - Transposed */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Monthly Breakdown</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                      Category
+                    </th>
+                    {aggregateData.monthlyData.map((data, index) => (
+                      <th key={index} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
+                        {data.month}
+                      </th>
+                    ))}
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100 min-w-[100px]">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {/* Income Row */}
+                  <tr className="bg-green-50 hover:bg-green-100">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 sticky left-0 bg-green-50 z-10">
+                      Income
+                    </td>
+                    {aggregateData.monthlyData.map((data, index) => (
+                      <td key={index} className="px-4 py-4 whitespace-nowrap text-sm text-center text-green-600 font-medium">
+                        ${data.income.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                    ))}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-green-600 font-bold bg-gray-50">
+                      ${aggregateData.totalIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                  </tr>
+
+                  {/* Expenses Header Row */}
+                  <tr className="bg-red-50 hover:bg-red-100">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 sticky left-0 bg-red-50 z-10">
+                      Expenses
+                    </td>
+                    {aggregateData.monthlyData.map((data, index) => (
+                      <td key={index} className="px-4 py-4 whitespace-nowrap text-sm text-center text-red-600 font-medium">
+                        ${data.expenses.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                    ))}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-red-600 font-bold bg-gray-50">
+                      ${aggregateData.totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                  </tr>
+
+                  {/* Expense Category Breakdown Sub-rows */}
+                  {aggregateData.expensesByCategory.map((category, catIndex) => (
+                    <tr key={`cat-${catIndex}`} className="bg-red-25 hover:bg-gray-50">
+                      <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-700 italic sticky left-0 bg-white z-10 pl-12">
+                        → {category.name}
+                      </td>
+                      {aggregateData.monthlyData.map((data, index) => {
+                        const monthExpenses = expenses.filter(e => {
+                          const date = new Date(e.datePaid);
+                          return date.getFullYear() === new Date().getFullYear() && 
+                                 date.getMonth() === index &&
+                                 e.category === category.name;
+                        });
+                        const total = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+                        return (
+                          <td key={index} className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-600">
+                            {total > 0 ? `$${total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '-'}
+                          </td>
+                        );
+                      })}
+                      <td className="px-6 py-3 whitespace-nowrap text-sm text-center text-gray-600 font-medium bg-gray-50">
+                        ${category.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* Net Income Row */}
+                  <tr className="bg-blue-50 hover:bg-blue-100">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 sticky left-0 bg-blue-50 z-10">
+                      Net Income
+                    </td>
+                    {aggregateData.monthlyData.map((data, index) => (
+                      <td key={index} className={`px-4 py-4 whitespace-nowrap text-sm text-center font-medium ${data.netIncome >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        ${data.netIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                    ))}
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-bold bg-gray-50 ${aggregateData.totalNetIncome >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                      ${aggregateData.totalNetIncome.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                  </tr>
+
+                  {/* Margin % Row */}
+                  <tr className="bg-purple-50 hover:bg-purple-100">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 sticky left-0 bg-purple-50 z-10">
+                      Margin %
+                    </td>
+                    {aggregateData.monthlyData.map((data, index) => {
+                      const margin = data.income > 0 ? ((data.netIncome / data.income) * 100) : 0;
+                      return (
+                        <td key={index} className={`px-4 py-4 whitespace-nowrap text-sm text-center font-medium ${margin >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                          {margin.toFixed(1)}%
+                        </td>
+                      );
+                    })}
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-center font-bold bg-gray-50 ${aggregateData.totalNetIncome >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                      {aggregateData.totalIncome > 0 ? ((aggregateData.totalNetIncome / aggregateData.totalIncome) * 100).toFixed(1) : 0}%
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
