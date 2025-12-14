@@ -1,6 +1,6 @@
 // src/services/supabaseService.ts
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Property, Tenant, Payment, RepairRequest } from '../types';
+import { Property, Tenant, Payment, RepairRequest, Expense } from '../types';
 
 // Database types that match your Supabase schema
 export interface Database {
@@ -76,6 +76,22 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['repair_requests']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['repair_requests']['Insert']>;
       };
+      expenses: {
+        Row: {
+          id: string;
+          date_paid: string;
+          property_id: string | null;
+          vendor: string;
+          description: string;
+          category: string;
+          amount: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['expenses']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['expenses']['Insert']>;
+      };
     };
   };
 }
@@ -88,22 +104,15 @@ class SupabaseService {
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      // Do not throw during app startup; allow mock-only mode.
-      // A real client will be required only when Supabase is enabled.
-      // Use a benign placeholder to satisfy types; calls will fail fast if invoked.
       console.warn('Supabase configuration missing; running without Supabase client.');
     }
 
-    this.supabase = createClient<Database>(
-      supabaseUrl || 'https://placeholder.supabase.co',
-      supabaseAnonKey || 'public-anon-key'
-    );
+    this.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
   }
 
-  // Connection test
   async testConnection(): Promise<boolean> {
     try {
-      const { error } = await this.supabase.from('properties').select('count', { count: 'exact', head: true });
+      const { data, error } = await this.supabase.from('properties').select('count').limit(1);
       return !error;
     } catch (error) {
       console.error('Supabase connection test failed:', error);
@@ -111,261 +120,161 @@ class SupabaseService {
     }
   }
 
-  // Properties CRUD
+  // ==================== PROPERTIES ====================
   async getProperties(): Promise<Property[]> {
-    const { data, error } = await this.supabase
-      .from('properties')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching properties:', error);
-      throw new Error(`Failed to fetch properties: ${error.message}`);
-    }
-
-    return (data || []).map(this.mapPropertyFromDB);
+    const { data, error } = await this.supabase.from('properties').select('*').order('address');
+    if (error) throw new Error(`Failed to fetch properties: ${error.message}`);
+    return data ? data.map(this.mapPropertyFromDB) : [];
   }
 
-  async createProperty(property: Omit<Property, 'id'>): Promise<Property> {
-    const { data, error } = await this.supabase
-      .from('properties')
-      .insert([this.mapPropertyToDB(property)])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating property:', error);
-      throw new Error(`Failed to create property: ${error.message}`);
-    }
-
+  async addProperty(property: Partial<Property>): Promise<Property> {
+    const dbProperty = this.mapPropertyToDB(property);
+    const { data, error } = await this.supabase.from('properties').insert(dbProperty).select().single();
+    if (error) throw new Error(`Failed to add property: ${error.message}`);
     return this.mapPropertyFromDB(data);
   }
 
-  async updateProperty(id: string, updates: Partial<Property>): Promise<Property> {
-    const { data, error } = await this.supabase
-      .from('properties')
-      .update(this.mapPropertyToDB(updates))
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating property:', error);
-      throw new Error(`Failed to update property: ${error.message}`);
-    }
-
+  async updateProperty(id: string, property: Partial<Property>): Promise<Property> {
+    const dbProperty = this.mapPropertyToDB(property);
+    const { data, error } = await this.supabase.from('properties').update(dbProperty).eq('id', id).select().single();
+    if (error) throw new Error(`Failed to update property: ${error.message}`);
     return this.mapPropertyFromDB(data);
   }
 
   async deleteProperty(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('properties')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting property:', error);
-      throw new Error(`Failed to delete property: ${error.message}`);
-    }
+    const { error } = await this.supabase.from('properties').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete property: ${error.message}`);
   }
 
-  // Tenants CRUD
+  // ==================== TENANTS ====================
   async getTenants(): Promise<Tenant[]> {
-    const { data, error } = await this.supabase
-      .from('tenants')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching tenants:', error);
-      throw new Error(`Failed to fetch tenants: ${error.message}`);
-    }
-
-    return (data || []).map(this.mapTenantFromDB);
+    const { data, error } = await this.supabase.from('tenants').select('*').order('name');
+    if (error) throw new Error(`Failed to fetch tenants: ${error.message}`);
+    return data ? data.map(this.mapTenantFromDB) : [];
   }
 
-  async createTenant(tenant: Omit<Tenant, 'id'>): Promise<Tenant> {
-    const { data, error } = await this.supabase
-      .from('tenants')
-      .insert([this.mapTenantToDB(tenant)])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating tenant:', error);
-      throw new Error(`Failed to create tenant: ${error.message}`);
-    }
-
+  async addTenant(tenant: Partial<Tenant>): Promise<Tenant> {
+    const dbTenant = this.mapTenantToDB(tenant);
+    const { data, error } = await this.supabase.from('tenants').insert(dbTenant).select().single();
+    if (error) throw new Error(`Failed to add tenant: ${error.message}`);
     return this.mapTenantFromDB(data);
   }
 
-  async updateTenant(id: string, updates: Partial<Tenant>): Promise<Tenant> {
-    const { data, error } = await this.supabase
-      .from('tenants')
-      .update(this.mapTenantToDB(updates))
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating tenant:', error);
-      throw new Error(`Failed to update tenant: ${error.message}`);
-    }
-
+  async updateTenant(id: string, tenant: Partial<Tenant>): Promise<Tenant> {
+    const dbTenant = this.mapTenantToDB(tenant);
+    const { data, error } = await this.supabase.from('tenants').update(dbTenant).eq('id', id).select().single();
+    if (error) throw new Error(`Failed to update tenant: ${error.message}`);
     return this.mapTenantFromDB(data);
   }
 
   async deleteTenant(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('tenants')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting tenant:', error);
-      throw new Error(`Failed to delete tenant: ${error.message}`);
-    }
+    const { error } = await this.supabase.from('tenants').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete tenant: ${error.message}`);
   }
 
-  // Payments CRUD
+  // ==================== PAYMENTS ====================
   async getPayments(): Promise<Payment[]> {
-    const { data, error } = await this.supabase
-      .from('payments')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching payments:', error);
-      throw new Error(`Failed to fetch payments: ${error.message}`);
-    }
-
-    return (data || []).map(this.mapPaymentFromDB);
+    const { data, error } = await this.supabase.from('payments').select('*').order('payment_date', { ascending: false });
+    if (error) throw new Error(`Failed to fetch payments: ${error.message}`);
+    return data ? data.map(this.mapPaymentFromDB) : [];
   }
 
-  async createPayment(payment: Omit<Payment, 'id'>): Promise<Payment> {
-    const { data, error } = await this.supabase
-      .from('payments')
-      .insert([this.mapPaymentToDB(payment)])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating payment:', error);
-      throw new Error(`Failed to create payment: ${error.message}`);
-    }
-
+  async addPayment(payment: Partial<Payment>): Promise<Payment> {
+    const dbPayment = this.mapPaymentToDB(payment);
+    const { data, error } = await this.supabase.from('payments').insert(dbPayment).select().single();
+    if (error) throw new Error(`Failed to add payment: ${error.message}`);
     return this.mapPaymentFromDB(data);
   }
 
-  async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment> {
-    const { data, error } = await this.supabase
-      .from('payments')
-      .update(this.mapPaymentToDB(updates))
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating payment:', error);
-      throw new Error(`Failed to update payment: ${error.message}`);
-    }
-
+  async updatePayment(id: string, payment: Partial<Payment>): Promise<Payment> {
+    const dbPayment = this.mapPaymentToDB(payment);
+    const { data, error } = await this.supabase.from('payments').update(dbPayment).eq('id', id).select().single();
+    if (error) throw new Error(`Failed to update payment: ${error.message}`);
     return this.mapPaymentFromDB(data);
   }
 
   async deletePayment(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('payments')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting payment:', error);
-      throw new Error(`Failed to delete payment: ${error.message}`);
-    }
+    const { error } = await this.supabase.from('payments').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete payment: ${error.message}`);
   }
 
-  // Repair Requests CRUD
+  // ==================== REPAIR REQUESTS ====================
   async getRepairRequests(): Promise<RepairRequest[]> {
-    const { data, error } = await this.supabase
-      .from('repair_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching repair requests:', error);
-      throw new Error(`Failed to fetch repair requests: ${error.message}`);
-    }
-
-    return (data || []).map(this.mapRepairRequestFromDB);
+    const { data, error } = await this.supabase.from('repair_requests').select('*').order('date_submitted', { ascending: false });
+    if (error) throw new Error(`Failed to fetch repair requests: ${error.message}`);
+    return data ? data.map(this.mapRepairRequestFromDB) : [];
   }
 
-  async createRepairRequest(request: Omit<RepairRequest, 'id'>): Promise<RepairRequest> {
-    const { data, error } = await this.supabase
-      .from('repair_requests')
-      .insert([this.mapRepairRequestToDB(request)])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating repair request:', error);
-      throw new Error(`Failed to create repair request: ${error.message}`);
-    }
-
+  async addRepairRequest(request: Partial<RepairRequest>): Promise<RepairRequest> {
+    const dbRequest = this.mapRepairRequestToDB(request);
+    const { data, error } = await this.supabase.from('repair_requests').insert(dbRequest).select().single();
+    if (error) throw new Error(`Failed to add repair request: ${error.message}`);
     return this.mapRepairRequestFromDB(data);
   }
 
-  async updateRepairRequest(id: string, updates: Partial<RepairRequest>): Promise<RepairRequest> {
-    const { data, error } = await this.supabase
-      .from('repair_requests')
-      .update(this.mapRepairRequestToDB(updates))
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating repair request:', error);
-      throw new Error(`Failed to update repair request: ${error.message}`);
-    }
-
+  async updateRepairRequest(id: string, request: Partial<RepairRequest>): Promise<RepairRequest> {
+    const dbRequest = this.mapRepairRequestToDB(request);
+    const { data, error } = await this.supabase.from('repair_requests').update(dbRequest).eq('id', id).select().single();
+    if (error) throw new Error(`Failed to update repair request: ${error.message}`);
     return this.mapRepairRequestFromDB(data);
   }
 
   async deleteRepairRequest(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('repair_requests')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting repair request:', error);
-      throw new Error(`Failed to delete repair request: ${error.message}`);
-    }
+    const { error } = await this.supabase.from('repair_requests').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete repair request: ${error.message}`);
   }
 
-  // Bulk sync operations
+  // ==================== EXPENSES ====================
+  async getExpenses(): Promise<Expense[]> {
+    const { data, error } = await this.supabase.from('expenses').select('*').order('date_paid', { ascending: false });
+    if (error) throw new Error(`Failed to fetch expenses: ${error.message}`);
+    return data ? data.map(this.mapExpenseFromDB) : [];
+  }
+
+  async addExpense(expense: Partial<Expense>): Promise<Expense> {
+    const dbExpense = this.mapExpenseToDB(expense);
+    const { data, error } = await this.supabase.from('expenses').insert(dbExpense).select().single();
+    if (error) throw new Error(`Failed to add expense: ${error.message}`);
+    return this.mapExpenseFromDB(data);
+  }
+
+  async updateExpense(id: string, expense: Partial<Expense>): Promise<Expense> {
+    const dbExpense = this.mapExpenseToDB(expense);
+    const { data, error } = await this.supabase.from('expenses').update(dbExpense).eq('id', id).select().single();
+    if (error) throw new Error(`Failed to update expense: ${error.message}`);
+    return this.mapExpenseFromDB(data);
+  }
+
+  async deleteExpense(id: string): Promise<void> {
+    const { error } = await this.supabase.from('expenses').delete().eq('id', id);
+    if (error) throw new Error(`Failed to delete expense: ${error.message}`);
+  }
+
+  // ==================== SYNC ALL DATA ====================
   async syncAllData(): Promise<{
     properties: Property[];
     tenants: Tenant[];
     payments: Payment[];
     repairRequests: RepairRequest[];
+    expenses: Expense[];
   }> {
     try {
-      const [properties, tenants, payments, repairRequests] = await Promise.all([
+      const [properties, tenants, payments, repairRequests, expenses] = await Promise.all([
         this.getProperties(),
         this.getTenants(),
         this.getPayments(),
         this.getRepairRequests(),
+        this.getExpenses(),
       ]);
 
-      return { properties, tenants, payments, repairRequests };
+      return { properties, tenants, payments, repairRequests, expenses };
     } catch (error) {
-      console.error('Error syncing all data:', error);
-      throw new Error(`Failed to sync data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to sync all data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  // Helper mapping functions
+  // ==================== HELPER MAPPING FUNCTIONS ====================
+  
   private mapPropertyFromDB(dbProperty: Database['public']['Tables']['properties']['Row']): Property {
     return {
       id: dbProperty.id,
@@ -399,9 +308,9 @@ class SupabaseService {
       leaseStart: dbTenant.lease_start,
       leaseEnd: dbTenant.lease_end,
       rentAmount: Number(dbTenant.rent_amount),
-      paymentMethod: (dbTenant.payment_method as Tenant['paymentMethod']) || '',
-      leaseType: (dbTenant.lease_type as Tenant['leaseType']) || '',
-      leaseRenewal: dbTenant.lease_renewal || '',
+      paymentMethod: (dbTenant.payment_method || '') as Tenant['paymentMethod'],
+      leaseType: (dbTenant.lease_type || '') as Tenant['leaseType'],
+      leaseRenewal: dbTenant.lease_renewal,
     };
   }
 
@@ -416,7 +325,7 @@ class SupabaseService {
     if (tenant.rentAmount !== undefined) mapped.rent_amount = tenant.rentAmount;
     if (tenant.paymentMethod !== undefined) mapped.payment_method = tenant.paymentMethod || null;
     if (tenant.leaseType !== undefined) mapped.lease_type = tenant.leaseType || null;
-    if (tenant.leaseRenewal !== undefined) mapped.lease_renewal = tenant.leaseRenewal || null;
+    if (tenant.leaseRenewal !== undefined) mapped.lease_renewal = tenant.leaseRenewal;
     return mapped;
   }
 
@@ -481,7 +390,31 @@ class SupabaseService {
     return mapped;
   }
 
-  // Get the Supabase client for direct access if needed
+  private mapExpenseFromDB(dbExpense: Database['public']['Tables']['expenses']['Row']): Expense {
+    return {
+      id: dbExpense.id,
+      datePaid: dbExpense.date_paid,
+      propertyId: dbExpense.property_id || '',
+      vendor: dbExpense.vendor,
+      description: dbExpense.description,
+      category: dbExpense.category,
+      amount: Number(dbExpense.amount),
+      notes: dbExpense.notes || undefined,
+    };
+  }
+
+  private mapExpenseToDB(expense: Partial<Expense>): Partial<Database['public']['Tables']['expenses']['Insert']> {
+    const mapped: Partial<Database['public']['Tables']['expenses']['Insert']> = {};
+    if (expense.datePaid !== undefined) mapped.date_paid = expense.datePaid;
+    if (expense.propertyId !== undefined) mapped.property_id = expense.propertyId || null;
+    if (expense.vendor !== undefined) mapped.vendor = expense.vendor;
+    if (expense.description !== undefined) mapped.description = expense.description;
+    if (expense.category !== undefined) mapped.category = expense.category;
+    if (expense.amount !== undefined) mapped.amount = expense.amount;
+    if (expense.notes !== undefined) mapped.notes = expense.notes || null;
+    return mapped;
+  }
+
   getClient(): SupabaseClient<Database> {
     return this.supabase;
   }

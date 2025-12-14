@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard';
 import { PropertyManagement } from './components/PropertyManagement';
 import { TenantManagement } from './components/TenantManagement';
 import { PaymentPortal } from './components/PaymentPortal';
+import { ExpenseManagement } from './components/ExpenseManagement';
 import { RepairManagement } from './components/RepairManagement';
 import { SupabaseSetup } from './components/SupabaseSetup';
 import { AuthPage } from './components/AuthPage';
@@ -19,7 +20,7 @@ const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showSupabaseSetup, setShowSupabaseSetup] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true); // Changed to true by default
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
   const dataHook = useData();
   const isSupabaseEnabled = import.meta.env.VITE_USE_SUPABASE === 'true';
@@ -73,6 +74,8 @@ const AppContent: React.FC = () => {
         return <TenantManagement dataHook={dataHook} />;
       case 'payments':
         return <PaymentPortal dataHook={dataHook} />;
+      case 'expenses':
+        return <ExpenseManagement dataHook={dataHook} />;
       case 'repairs':
         return <RepairManagement dataHook={dataHook} />;
       default:

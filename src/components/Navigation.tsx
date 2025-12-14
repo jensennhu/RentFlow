@@ -1,6 +1,6 @@
 // src/components/Navigation.tsx
 import React from 'react';
-import { LayoutDashboard, Home, Users, DollarSign, Wrench, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Home, Users, DollarSign, Wrench, Receipt, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
@@ -20,6 +20,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'properties', label: 'Properties', icon: Home },
     { id: 'tenants', label: 'Tenants', icon: Users },
     { id: 'payments', label: 'Payments', icon: DollarSign },
+    { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'repairs', label: 'Repairs', icon: Wrench },
   ];
 

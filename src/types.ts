@@ -34,6 +34,7 @@ export interface Payment {
   status: 'Not Paid Yet' | 'Partially Paid' | 'Paid';
   method?: string;
 }
+
 export interface RepairRequest {
   id: string;
   tenantId: string;
@@ -46,6 +47,17 @@ export interface RepairRequest {
   dateResolved?: string;
   category: string;
   closeNotes?: string;
+}
+
+export interface Expense {
+  id: string;
+  datePaid: string;
+  propertyId: string;
+  vendor: string;
+  description: string;
+  category: string;
+  amount: number;
+  notes?: string;
 }
 
 export interface GoogleSheetsConfig {
@@ -73,10 +85,11 @@ export interface SyncResult {
   success: boolean;
   message: string;
 }
+
 export interface DataChange {
   id: string;
   type: 'add' | 'update' | 'delete';
-  table: 'properties' | 'tenants' | 'payments' | 'repairRequests';
+  table: 'properties' | 'tenants' | 'payments' | 'repairRequests' | 'expenses';
   current?: unknown;
   new?: unknown;
   field?: string;
